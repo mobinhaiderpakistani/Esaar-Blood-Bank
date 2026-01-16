@@ -29,7 +29,10 @@ import {
   Database,
   BookmarkCheck,
   RotateCcw,
-  Trash
+  Trash,
+  Clock,
+  ArrowUpRight,
+  TrendingUp
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, Legend } from 'recharts';
 
@@ -113,9 +116,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     return matchesSearch;
   });
 
+  // Precise Calculation Logic
   const totalTarget = cityFiltered.reduce((sum, d) => sum + (d.monthlyAmount || 0), 0);
-  const totalCollectedCount = cityFiltered.filter(d => d.status === 'COLLECTED').length;
-  const totalPendingCount = cityFiltered.filter(d => d.status === 'PENDING').length;
   
   const historyList = historyRaw
     .filter(h => !state.currentMonthKey || h.date.startsWith(state.currentMonthKey))
@@ -129,6 +131,10 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
   const historyTotalSum = historyList.reduce((sum, h) => sum + (h.amount || 0), 0);
   const cashSum = historyList.filter(h => h.paymentMethod === 'CASH').reduce((sum, h) => sum + (h.amount || 0), 0);
   const onlineSum = historyList.filter(h => h.paymentMethod === 'ONLINE').reduce((sum, h) => sum + (h.amount || 0), 0);
+  const pendingAmount = totalTarget - historyTotalSum;
+
+  const totalCollectedCount = cityFiltered.filter(d => d.status === 'COLLECTED').length;
+  const totalPendingCount = cityFiltered.filter(d => d.status === 'PENDING').length;
 
   const comprehensiveHistory = cityFiltered
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter)
@@ -262,7 +268,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  // --- THE ISOLATED WINDOW PRINT METHOD ---
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
@@ -551,15 +556,53 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
 
       {activeTab === 'dashboard' && (
         <div className="space-y-8 animate-in fade-in duration-300">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <StatCard label="Monthly Target" value={`Rs. ${totalTarget.toLocaleString()}`} icon={<Building2 />} color="text-blue-600" />
-            <StatCard label="Collected" value={`Rs. ${historyTotalSum.toLocaleString()}`} icon={<CheckCircle2 />} color="text-emerald-600" />
-            <StatCard label="Cash" value={`Rs. ${cashSum.toLocaleString()}`} icon={<Wallet />} color="text-amber-500" />
-            <StatCard label="Bank" value={`Rs. ${onlineSum.toLocaleString()}`} icon={<Globe />} color="text-blue-400" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-3">
+              <StatCard label="Monthly Target" value={`Rs. ${totalTarget.toLocaleString()}`} icon={<Building2 />} color="text-blue-600" />
+            </div>
+            
+            {/* Redesigned Consolidated Collection Card */}
+            <div className="lg:col-span-6 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:translate-y-[-4px] hover:shadow-lg relative overflow-hidden flex flex-col justify-center">
+               <div className="flex items-center justify-between w-full h-full">
+                  <div className="flex-1">
+                     <div className="p-3 rounded-2xl bg-emerald-50 inline-block mb-3 text-emerald-600">
+                        <CheckCircle2 className="w-5 h-5" />
+                     </div>
+                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Total Collected</p>
+                     <p className="text-4xl font-black text-slate-900 tracking-tighter">Rs. {historyTotalSum.toLocaleString()}</p>
+                     
+                     <div className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit">
+                        <TrendingUp className="w-3 h-3" />
+                        {totalTarget > 0 ? Math.round((historyTotalSum / totalTarget) * 100) : 0}% of Target Reached
+                     </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3 ml-4">
+                     <div className="bg-amber-50 p-5 rounded-[32px] border border-amber-100 group transition-all hover:bg-amber-100 min-w-[160px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <Wallet className="w-5 h-5 text-amber-600" />
+                          <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">CASH</span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900">Rs. {cashSum.toLocaleString()}</p>
+                     </div>
+                     <div className="bg-blue-50 p-5 rounded-[32px] border border-blue-100 group transition-all hover:bg-blue-100 min-w-[160px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <Globe className="w-5 h-5 text-blue-600" />
+                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">BANK</span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900">Rs. {onlineSum.toLocaleString()}</p>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <div className="lg:col-span-3">
+              <StatCard label="Pending Amount" value={`Rs. ${pendingAmount.toLocaleString()}`} icon={<Clock />} color="text-red-600" />
+            </div>
           </div>
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
             <div className="xl:col-span-2 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-black text-slate-800 mb-8 uppercase tracking-tight">Area Performance</h3>
+              <h3 className="text-lg font-black text-slate-800 mb-8 uppercase tracking-tight">Area Performance Overview</h3>
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barData} barGap={0}>
@@ -841,7 +884,11 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
 };
 
 const StatCard: React.FC<{ label: string; value: string; icon: React.ReactNode; color: string }> = ({ label, value, icon, color }) => (
-  <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:translate-y-[-4px] hover:shadow-lg"><div className={`p-4 rounded-[20px] bg-slate-50 inline-block mb-6 ${color}`}>{icon}</div><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p><p className="text-2xl font-black text-slate-900">{value}</p></div>
+  <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:translate-y-[-4px] h-full hover:shadow-lg flex flex-col justify-center">
+    <div className={`p-4 rounded-[20px] bg-slate-50 inline-block mb-6 ${color} w-fit`}>{icon}</div>
+    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+    <p className="text-4xl font-black text-slate-900 tracking-tighter">{value}</p>
+  </div>
 );
 
 const InputGroup: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }> = ({ label, value, onChange, type = "text" }) => (
