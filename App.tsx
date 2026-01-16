@@ -1,0 +1,186 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { AppState, User, UserRole } from './types';
+import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
+import DashboardHeader from './components/DashboardHeader';
+import AdminPanel from './components/AdminPanel';
+import CollectorPanel from './components/CollectorPanel';
+import { Droplets, Lock, Eye, EyeOff, X } from 'lucide-react';
+
+const firebase = (window as any).firebase;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD4ITcoh4mhq_PuzMev4xn9Mx0vcF-op38",
+  authDomain: "esaar-blood-bank.firebaseapp.com",
+  databaseURL: "https://esaar-blood-bank-default-rtdb.firebaseio.com",
+  projectId: "esaar-blood-bank",
+  storageBucket: "esaar-blood-bank.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+if (firebase && !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+const App: React.FC = () => {
+  const [state, setState] = useState<AppState>(() => ({
+    currentUser: null,
+    donors: INITIAL_DONORS,
+    collectors: INITIAL_COLLECTORS,
+    donationHistory: [],
+    cities: CITIES,
+    currentMonthKey: "",
+    adminPassword: "admin"
+  }));
+
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [error, setError] = useState('');
+  const [collectorTab, setCollectorTab] = useState<'pending' | 'history'>('pending');
+  const [isAdminPassModalOpen, setIsAdminPassModalOpen] = useState(false);
+  
+  const [newAdminPass, setNewAdminPass] = useState('');
+  const [showPass, setShowPass] = useState(false);
+
+  const ensureArray = (data: any) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    return Object.values(data);
+  };
+
+  useEffect(() => {
+    if (!firebase) return;
+    const dbRef = firebase.database().ref('esaar_state');
+    const handleData = (snapshot: any) => {
+      const cloudData = snapshot.val();
+      if (cloudData) {
+        setState(prev => ({
+          ...prev,
+          ...cloudData,
+          donors: ensureArray(cloudData.donors),
+          collectors: ensureArray(cloudData.collectors),
+          donationHistory: ensureArray(cloudData.donationHistory),
+          cities: ensureArray(cloudData.cities),
+          adminPassword: cloudData.adminPassword || "admin",
+          currentUser: prev.currentUser 
+        }));
+      } else {
+        dbRef.set({
+          donors: INITIAL_DONORS,
+          collectors: INITIAL_COLLECTORS,
+          donationHistory: [],
+          cities: CITIES,
+          currentMonthKey: "",
+          adminPassword: "admin"
+        });
+      }
+    };
+    dbRef.on('value', handleData);
+    return () => dbRef.off('value', handleData);
+  }, []);
+
+  const updateGlobalState = useCallback((newState: Partial<AppState>) => {
+    if (!firebase) return;
+    setState(prev => ({ ...prev, ...newState }));
+    firebase.database().ref('esaar_state').update(newState).catch(console.error);
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUsername = usernameInput.trim().toLowerCase();
+    
+    if (cleanUsername === 'admin' && passwordInput === (state.adminPassword || "admin")) {
+      setState(prev => ({ ...prev, currentUser: { id: 'admin', name: 'System Admin', phone: '001', role: UserRole.ADMIN, username: 'admin' } }));
+    } 
+    else {
+      const allUsers = state.collectors || [];
+      const user = allUsers.find(c => 
+        c.username.toLowerCase() === cleanUsername && 
+        (c.password ? c.password === passwordInput : passwordInput === '1234')
+      );
+      if (user) {
+        setState(prev => ({ ...prev, currentUser: user }));
+      } else {
+        setError('Incorrect credentials');
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    setState(prev => ({ ...prev, currentUser: null }));
+    setUsernameInput('');
+    setPasswordInput('');
+  };
+
+  const changeAdminPassword = () => {
+    if (!newAdminPass || !state.currentUser) return;
+    updateGlobalState({ adminPassword: newAdminPass });
+    setIsAdminPassModalOpen(false);
+    setNewAdminPass('');
+    alert("Password updated successfully!");
+  };
+
+  if (!state.currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center bg-red-600 p-4 rounded-[28px] shadow-2xl mb-6"><Droplets className="text-white w-12 h-12" /></div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Esaar Blood Bank</h1>
+          </div>
+          <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
+            <form onSubmit={handleLogin} className="space-y-6">
+              <input type="text" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" placeholder="Username" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} />
+              <input type="password" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" placeholder="Password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} />
+              {error && <p className="text-red-500 text-xs font-bold text-center">{error}</p>}
+              <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[22px] font-black hover:bg-black transition-all">Login</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const renderPanel = () => {
+    const role = state.currentUser?.role;
+    if (role === UserRole.ADMIN) return <AdminPanel state={state} onUpdateState={updateGlobalState} />;
+    return <CollectorPanel user={state.currentUser!} state={state} onUpdateState={updateGlobalState} activeTab={collectorTab} setActiveTab={setCollectorTab} />;
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <DashboardHeader 
+        user={state.currentUser} 
+        onLogout={handleLogout} 
+        onProfileClick={() => state.currentUser?.role === UserRole.ADMIN && setIsAdminPassModalOpen(true)} 
+      />
+      <main className="max-w-7xl mx-auto pb-12">
+        {renderPanel()}
+      </main>
+
+      {isAdminPassModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+          <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs">Admin Security</h3>
+              <button onClick={() => setIsAdminPassModalOpen(false)}><X className="w-5 h-5 text-slate-300"/></button>
+            </div>
+            <div className="space-y-4 mb-8">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Change Password</p>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type={showPass ? "text" : "password"} placeholder="New Password"  className="w-full pl-11 pr-11 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm" value={newAdminPass} onChange={e => setNewAdminPass(e.target.value)} />
+                <button onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">
+                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <button onClick={changeAdminPassword} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-sm">Update Password</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;

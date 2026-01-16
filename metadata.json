@@ -1,0 +1,5 @@
+{
+  "name": "Esaar Blood Bank",
+  "description": "A comprehensive blood bank donation collection system with dedicated Admin and Collector panels, featuring real-time reports and automated donor assignment.",
+  "requestFramePermissions": []
+}
