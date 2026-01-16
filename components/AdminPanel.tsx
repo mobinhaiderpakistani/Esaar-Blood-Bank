@@ -42,9 +42,8 @@ interface Props {
 }
 
 const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'donors' | 'collectors' | 'history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'donors' | 'collectors' | 'history' | 'maintenance'>('dashboard');
   const [showAreaManagement, setShowAreaManagement] = useState(false);
-  const [showSystemMaintenance, setShowSystemMaintenance] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCityFilter, setSelectedCityFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COLLECTED' | 'PENDING'>('ALL');
@@ -243,7 +242,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
 
       setTimeout(() => {
         setIsResetting(false);
-        setShowSystemMaintenance(false);
         setActiveTab('dashboard');
         alert("سسٹم کامیابی سے ری سیٹ کر دیا گیا ہے۔");
       }, 1000);
@@ -408,130 +406,10 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     );
   }
 
-  if (showSystemMaintenance && isSuperAdmin) {
-    return (
-      <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-300">
-        <div className="flex justify-start">
-          <button onClick={() => setShowSystemMaintenance(false)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl font-black text-xs uppercase text-slate-500 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-            <ChevronLeft className="w-4 h-4" /> Back to Dashboard
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-          <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10">
-             <div className="mb-10 flex items-center gap-4">
-                <div className="p-3 bg-slate-900 rounded-2xl"><Database className="w-8 h-8 text-white" /></div>
-                <div>
-                   <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Data Backup</h2>
-                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Permanent File Export/Import</p>
-                </div>
-             </div>
-             <div className="space-y-6">
-                <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100">
-                   <Download className="w-6 h-6 text-emerald-600 mb-4" />
-                   <h3 className="text-lg font-black text-emerald-900 uppercase">Export File</h3>
-                   <p className="text-sm text-emerald-700/80 mb-6 font-medium">موجودہ تمام ڈیٹا کا بیک اپ فائل ڈاؤن لوڈ کریں۔</p>
-                   <button onClick={handleExportData} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-100">بیک اپ ڈاؤن لوڈ کریں</button>
-                </div>
-                <div className="p-8 bg-blue-50 rounded-[32px] border border-blue-100">
-                   <Upload className="w-6 h-6 text-blue-600 mb-4" />
-                   <h3 className="text-lg font-black text-blue-900 uppercase">Import File</h3>
-                   <p className="text-sm text-blue-700/80 mb-6 font-medium">پہلے سے ڈاؤن لوڈ کردہ بیک اپ فائل اپ لوڈ کریں۔</p>
-                   <input type="file" ref={fileInputRef} onChange={handleImportData} className="hidden" accept=".json" />
-                   <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100">بیک اپ فائل اپ لوڈ کریں</button>
-                </div>
-             </div>
-             <div className="mt-12 pt-8 border-t border-red-50">
-               <div className="flex items-center gap-4 mb-6">
-                 <Trash className="w-6 h-6 text-red-600" />
-                 <h3 className="text-lg font-black text-red-600 uppercase">Danger Zone</h3>
-               </div>
-               <div className="p-8 bg-red-50 rounded-[32px] border border-red-100">
-                 <h4 className="font-black text-red-900 mb-2">Deep System Reset</h4>
-                 <p className="text-sm text-red-700/80 mb-6 font-medium leading-relaxed">تمام ٹرانزیکشن ہسٹری ڈیلیٹ کر دیں اور کلیکشن دوبارہ شروع کریں۔</p>
-                 <button 
-                  type="button"
-                  disabled={isResetting}
-                  onClick={() => setShowResetConfirmModal(true)} 
-                  className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${isResetting ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-200'}`}
-                 >
-                   <AlertCircle className="w-4 h-4" /> {isResetting ? 'ری سیٹ ہو رہا ہے...' : 'کلین سویپ ری سیٹ کریں'}
-                 </button>
-               </div>
-             </div>
-          </div>
-
-          <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10">
-             <div className="mb-10 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-red-600 rounded-2xl"><BookmarkCheck className="w-8 h-8 text-white" /></div>
-                  <div>
-                     <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Checkpoints</h2>
-                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Fast Local Restore Points</p>
-                  </div>
-                </div>
-                <button onClick={createQuickCheckpoint} className="p-4 bg-red-600 text-white rounded-2xl shadow-lg hover:bg-red-700 transition-all">
-                  <Plus className="w-6 h-6" />
-                </button>
-             </div>
-             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                {localCheckpoints.length === 0 ? (
-                  <div className="text-center py-20 bg-slate-50 rounded-[32px] border border-dashed border-slate-200">
-                    <BookmarkCheck className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="font-black text-slate-300 uppercase tracking-widest">No checkpoints created</p>
-                  </div>
-                ) : (
-                  localCheckpoints.map((checkpoint) => (
-                    <div key={checkpoint.id} className="p-6 bg-slate-50 rounded-[28px] border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-md transition-all">
-                      <div>
-                        <p className="font-black text-slate-900">{checkpoint.timestamp}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Local Browser Snapshot</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => restoreQuickCheckpoint(checkpoint)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 transition-all">
-                          <RotateCcw className="w-3 h-3" /> Restore
-                        </button>
-                        <button onClick={() => deleteCheckpoint(checkpoint.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-             </div>
-          </div>
-        </div>
-
-        {showResetConfirmModal && (
-          <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-slate-900/80 backdrop-blur-xl p-4">
-            <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl overflow-hidden text-center animate-in zoom-in duration-300">
-              <div className="p-10">
-                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <AlertCircle className="w-10 h-10 text-red-600" />
-                </div>
-                <h3 className="text-xl font-black text-slate-900 mb-4">آخری تصدیق!</h3>
-                <p className="text-sm font-bold text-slate-500 leading-relaxed mb-8">
-                  کیا آپ واقعی تمام ریکارڈ ڈیلیٹ کرنا چاہتے ہیں؟ تمام ڈونرز دوبارہ 'Pending' ہو جائیں گے۔
-                </p>
-                <div className="flex flex-col gap-3">
-                  <button onClick={handlePerformDeepReset} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-red-100 active:scale-95 transition-all">ہاں، سب کچھ ڈیلیٹ کریں</button>
-                  <button onClick={() => setShowResetConfirmModal(false)} className="w-full py-5 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-xs">منسوخ</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 md:p-8 space-y-6 min-h-screen pb-24">
       <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2">
         <button onClick={() => setShowAreaManagement(true)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm" title="Area Settings"><Settings className="w-5 h-5" /></button>
-        {isSuperAdmin && (
-          <button onClick={() => setShowSystemMaintenance(true)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm" title="System Backup"><Database className="w-5 h-5" /></button>
-        )}
         <button onClick={() => setSelectedCityFilter('All')} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap border transition-all ${selectedCityFilter === 'All' ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}>All Areas</button>
         {citiesRaw.map(c => (
           <button key={c} onClick={() => setSelectedCityFilter(c)} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap border transition-all ${selectedCityFilter === c ? 'bg-red-600 text-white border-red-600 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}>{c}</button>
@@ -544,7 +422,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
             { id: 'dashboard', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
             { id: 'donors', label: 'Donors', icon: <Users className="w-4 h-4" /> },
             { id: 'collectors', label: 'Agents', icon: <UserCheck className="w-4 h-4" /> },
-            { id: 'history', label: 'Status Board', icon: <History className="w-4 h-4" /> }
+            { id: 'history', label: 'Status Board', icon: <History className="w-4 h-4" /> },
+            ...(isSuperAdmin ? [{ id: 'maintenance', label: 'System Backup', icon: <Database className="w-4 h-4" /> }] : [])
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-3 rounded-[18px] font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'bg-transparent text-slate-400 hover:bg-slate-50'}`}>
               {tab.icon} {tab.label}
@@ -561,7 +440,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
               <StatCard label="Monthly Target" value={`Rs. ${totalTarget.toLocaleString()}`} icon={<Building2 />} color="text-blue-600" />
             </div>
             
-            {/* Redesigned Consolidated Collection Card */}
             <div className="lg:col-span-6 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-all hover:translate-y-[-4px] hover:shadow-lg relative overflow-hidden flex flex-col justify-center">
                <div className="flex items-center justify-between w-full h-full">
                   <div className="flex-1">
@@ -773,6 +651,115 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
               <tfoot className="bg-slate-900 text-white"><tr className="font-black"><td colSpan={4} className="px-10 py-10 uppercase tracking-widest text-[11px]">Total Area Collection (Paid Only)</td><td className="px-10 py-10 text-right text-3xl text-emerald-400">Rs. {historyTotalSum.toLocaleString()}</td></tr></tfoot>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'maintenance' && isSuperAdmin && (
+        <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-300">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10">
+               <div className="mb-10 flex items-center gap-4">
+                  <div className="p-3 bg-slate-900 rounded-2xl"><Database className="w-8 h-8 text-white" /></div>
+                  <div>
+                     <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Data Backup</h2>
+                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Permanent File Export/Import</p>
+                  </div>
+               </div>
+               <div className="space-y-6">
+                  <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100">
+                     <Download className="w-6 h-6 text-emerald-600 mb-4" />
+                     <h3 className="text-lg font-black text-emerald-900 uppercase">Export File</h3>
+                     <p className="text-sm text-emerald-700/80 mb-6 font-medium">موجودہ تمام ڈیٹا کا بیک اپ فائل ڈاؤن لوڈ کریں۔</p>
+                     <button onClick={handleExportData} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-100">بیک اپ ڈاؤن لوڈ کریں</button>
+                  </div>
+                  <div className="p-8 bg-blue-50 rounded-[32px] border border-blue-100">
+                     <Upload className="w-6 h-6 text-blue-600 mb-4" />
+                     <h3 className="text-lg font-black text-blue-900 uppercase">Import File</h3>
+                     <p className="text-sm text-blue-700/80 mb-6 font-medium">پہلے سے ڈاؤن لوڈ کردہ بیک اپ فائل اپ لوڈ کریں۔</p>
+                     <input type="file" ref={fileInputRef} onChange={handleImportData} className="hidden" accept=".json" />
+                     <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100">بیک اپ فائل اپ لوڈ کریں</button>
+                  </div>
+               </div>
+               <div className="mt-12 pt-8 border-t border-red-50">
+                 <div className="flex items-center gap-4 mb-6">
+                   <Trash className="w-6 h-6 text-red-600" />
+                   <h3 className="text-lg font-black text-red-600 uppercase">Danger Zone</h3>
+                 </div>
+                 <div className="p-8 bg-red-50 rounded-[32px] border border-red-100">
+                   <h4 className="font-black text-red-900 mb-2">Deep System Reset</h4>
+                   <p className="text-sm text-red-700/80 mb-6 font-medium leading-relaxed">تمام ٹرانزیکشن ہسٹری ڈیلیٹ کر دیں اور کلیکشن دوبارہ شروع کریں۔</p>
+                   <button 
+                    type="button"
+                    disabled={isResetting}
+                    onClick={() => setShowResetConfirmModal(true)} 
+                    className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${isResetting ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-200'}`}
+                   >
+                     <AlertCircle className="w-4 h-4" /> {isResetting ? 'ری سیٹ ہو رہا ہے...' : 'کلین سویپ ری سیٹ کریں'}
+                   </button>
+                 </div>
+               </div>
+            </div>
+
+            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10">
+               <div className="mb-10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-red-600 rounded-2xl"><BookmarkCheck className="w-8 h-8 text-white" /></div>
+                    <div>
+                       <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Checkpoints</h2>
+                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Fast Local Restore Points</p>
+                    </div>
+                  </div>
+                  <button onClick={createQuickCheckpoint} className="p-4 bg-red-600 text-white rounded-2xl shadow-lg hover:bg-red-700 transition-all">
+                    <Plus className="w-6 h-6" />
+                  </button>
+               </div>
+               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                  {localCheckpoints.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 rounded-[32px] border border-dashed border-slate-200">
+                      <BookmarkCheck className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                      <p className="font-black text-slate-300 uppercase tracking-widest">No checkpoints created</p>
+                    </div>
+                  ) : (
+                    localCheckpoints.map((checkpoint) => (
+                      <div key={checkpoint.id} className="p-6 bg-slate-50 rounded-[28px] border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-md transition-all">
+                        <div>
+                          <p className="font-black text-slate-900">{checkpoint.timestamp}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Local Browser Snapshot</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => restoreQuickCheckpoint(checkpoint)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 transition-all">
+                            <RotateCcw className="w-3 h-3" /> Restore
+                          </button>
+                          <button onClick={() => deleteCheckpoint(checkpoint.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+               </div>
+            </div>
+          </div>
+
+          {showResetConfirmModal && (
+            <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-slate-900/80 backdrop-blur-xl p-4">
+              <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl overflow-hidden text-center animate-in zoom-in duration-300">
+                <div className="p-10">
+                  <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <AlertCircle className="w-10 h-10 text-red-600" />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 mb-4">آخری تصدیق!</h3>
+                  <p className="text-sm font-bold text-slate-500 leading-relaxed mb-8">
+                    کیا آپ واقعی تمام ریکارڈ ڈیلیٹ کرنا چاہتے ہیں؟ تمام ڈونرز دوبارہ 'Pending' ہو جائیں گے۔
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <button onClick={handlePerformDeepReset} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-red-100 active:scale-95 transition-all">ہاں، سب کچھ ڈیلیٹ کریں</button>
+                    <button onClick={() => setShowResetConfirmModal(false)} className="w-full py-5 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-xs">منسوخ</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
