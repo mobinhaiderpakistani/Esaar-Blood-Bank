@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LogOut, Droplets, Settings } from 'lucide-react';
+import { LogOut, Droplets, User as UserIcon, Settings } from 'lucide-react';
 
 interface Props {
   user: User;

@@ -1,4 +1,6 @@
+
 export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
   COLLECTOR = 'COLLECTOR'
 }
@@ -47,4 +49,5 @@ export interface AppState {
   cities: string[];
   currentMonthKey: string;
   adminPassword?: string;
+  superAdminPassword?: string;
 }

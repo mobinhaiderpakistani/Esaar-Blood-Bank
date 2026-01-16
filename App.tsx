@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, User, UserRole } from './types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
@@ -30,7 +31,8 @@ const App: React.FC = () => {
     donationHistory: [],
     cities: CITIES,
     currentMonthKey: "",
-    adminPassword: "admin"
+    adminPassword: "admin",
+    superAdminPassword: "superadmin"
   }));
 
   const [usernameInput, setUsernameInput] = useState('');
@@ -62,6 +64,7 @@ const App: React.FC = () => {
           donationHistory: ensureArray(cloudData.donationHistory),
           cities: ensureArray(cloudData.cities),
           adminPassword: cloudData.adminPassword || "admin",
+          superAdminPassword: cloudData.superAdminPassword || "superadmin",
           currentUser: prev.currentUser 
         }));
       } else {
@@ -71,7 +74,8 @@ const App: React.FC = () => {
           donationHistory: [],
           cities: CITIES,
           currentMonthKey: "",
-          adminPassword: "admin"
+          adminPassword: "admin",
+          superAdminPassword: "superadmin"
         });
       }
     };
@@ -81,25 +85,36 @@ const App: React.FC = () => {
 
   const updateGlobalState = useCallback((newState: Partial<AppState>) => {
     if (!firebase) return;
+    
+    // فورا لوکل سٹیٹ اپڈیٹ کریں
     setState(prev => ({ ...prev, ...newState }));
-    firebase.database().ref('esaar_state').update(newState).catch(console.error);
+
+    // فائر بیس پر ڈیٹا بھیجیں
+    firebase.database().ref('esaar_state').update(newState)
+      .catch((err: any) => {
+        console.error("Firebase Error:", err);
+        alert("ڈیٹا اپڈیٹ کرنے میں مسئلہ پیش آیا ہے۔ انٹرنیٹ چیک کریں۔");
+      });
   }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUsername = usernameInput.trim().toLowerCase();
     
-    if (cleanUsername === 'admin' && passwordInput === (state.adminPassword || "admin")) {
+    if (cleanUsername === 'superadmin' && passwordInput === (state.superAdminPassword || "superadmin")) {
+      setState(prev => ({ ...prev, currentUser: { id: 'superadmin', name: 'Super Admin', phone: '000', role: UserRole.SUPER_ADMIN, username: 'superadmin' } }));
+    } 
+    else if (cleanUsername === 'admin' && passwordInput === (state.adminPassword || "admin")) {
       setState(prev => ({ ...prev, currentUser: { id: 'admin', name: 'System Admin', phone: '001', role: UserRole.ADMIN, username: 'admin' } }));
     } 
     else {
-      const allUsers = state.collectors || [];
-      const user = allUsers.find(c => 
+      const collectors = state.collectors || [];
+      const collector = collectors.find(c => 
         c.username.toLowerCase() === cleanUsername && 
         (c.password ? c.password === passwordInput : passwordInput === '1234')
       );
-      if (user) {
-        setState(prev => ({ ...prev, currentUser: user }));
+      if (collector) {
+        setState(prev => ({ ...prev, currentUser: collector }));
       } else {
         setError('Incorrect credentials');
       }
@@ -114,7 +129,11 @@ const App: React.FC = () => {
 
   const changeAdminPassword = () => {
     if (!newAdminPass || !state.currentUser) return;
-    updateGlobalState({ adminPassword: newAdminPass });
+    if (state.currentUser.role === UserRole.SUPER_ADMIN) {
+      updateGlobalState({ superAdminPassword: newAdminPass });
+    } else {
+      updateGlobalState({ adminPassword: newAdminPass });
+    }
     setIsAdminPassModalOpen(false);
     setNewAdminPass('');
     alert("Password updated successfully!");
@@ -141,28 +160,27 @@ const App: React.FC = () => {
     );
   }
 
-  const renderPanel = () => {
-    const role = state.currentUser?.role;
-    if (role === UserRole.ADMIN) return <AdminPanel state={state} onUpdateState={updateGlobalState} />;
-    return <CollectorPanel user={state.currentUser!} state={state} onUpdateState={updateGlobalState} activeTab={collectorTab} setActiveTab={setCollectorTab} />;
-  };
+  const isAdminPanel = state.currentUser.role === UserRole.ADMIN || state.currentUser.role === UserRole.SUPER_ADMIN;
 
   return (
     <div className="min-h-screen bg-slate-50">
       <DashboardHeader 
         user={state.currentUser} 
         onLogout={handleLogout} 
-        onProfileClick={() => state.currentUser?.role === UserRole.ADMIN && setIsAdminPassModalOpen(true)} 
+        onProfileClick={() => isAdminPanel && setIsAdminPassModalOpen(true)} 
       />
-      <main className="max-w-7xl mx-auto pb-12">
-        {renderPanel()}
+      <main className="max-w-7xl mx-auto">
+        {isAdminPanel ? 
+          <AdminPanel state={state} onUpdateState={updateGlobalState} /> : 
+          <CollectorPanel user={state.currentUser} state={state} onUpdateState={updateGlobalState} activeTab={collectorTab} setActiveTab={setCollectorTab} />
+        }
       </main>
 
       {isAdminPassModalOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
           <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs">Admin Security</h3>
+              <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs">{state.currentUser.role === UserRole.SUPER_ADMIN ? 'Super Admin Security' : 'Admin Security'}</h3>
               <button onClick={() => setIsAdminPassModalOpen(false)}><X className="w-5 h-5 text-slate-300"/></button>
             </div>
             <div className="space-y-4 mb-8">
