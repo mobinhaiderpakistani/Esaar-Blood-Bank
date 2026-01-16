@@ -102,84 +102,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     }
   };
 
-  const handlePerformDeepReset = () => {
-    if (!isSuperAdmin) return;
-    setIsResetting(true);
-    setShowResetConfirmModal(false);
-
-    try {
-      const resetDonors = (state.donors || []).map(donor => ({
-        ...donor,
-        status: 'PENDING' as const,
-        lastPaymentDate: null
-      }));
-
-      onUpdateState({
-        donationHistory: [],
-        donors: resetDonors,
-        currentMonthKey: ""
-      });
-
-      setTimeout(() => {
-        setIsResetting(false);
-        setShowSystemMaintenance(false);
-        setActiveTab('dashboard');
-        alert("سسٹم کامیابی سے ری سیٹ کر دیا گیا ہے۔");
-      }, 1000);
-    } catch (err) {
-      setIsResetting(false);
-      alert("Error during reset.");
-    }
-  };
-
-  const createQuickCheckpoint = () => {
-    const newCheckpoint = {
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
-      data: JSON.parse(JSON.stringify(state))
-    };
-    const updated = [newCheckpoint, ...localCheckpoints].slice(0, 10);
-    setLocalCheckpoints(updated);
-    localStorage.setItem('esaar_checkpoints', JSON.stringify(updated));
-    alert("چیک پوائنٹ محفوظ ہو گیا۔");
-  };
-
-  const restoreQuickCheckpoint = (checkpoint: any) => {
-    if (window.confirm("Restore this checkpoint?")) {
-      onUpdateState(checkpoint.data);
-    }
-  };
-
-  const deleteCheckpoint = (id: string) => {
-    const updated = localCheckpoints.filter(c => c.id !== id);
-    setLocalCheckpoints(updated);
-    localStorage.setItem('esaar_checkpoints', JSON.stringify(updated));
-  };
-
-  const handleExportData = () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `esaar_backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target?.result as string);
-        onUpdateState(json);
-        alert("ڈیٹا بحال ہو گیا۔");
-      } catch (err) { alert("Invalid file."); }
-    };
-    reader.readAsText(file);
-  };
-
   const donorsListRaw = state.donors || [];
   const historyRaw = state.donationHistory || [];
   const citiesRaw = state.cities || [];
@@ -238,6 +160,54 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     { name: 'Online', value: onlineSum, color: '#3b82f6' }
   ];
 
+  const createQuickCheckpoint = () => {
+    const newCheckpoint = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      data: JSON.parse(JSON.stringify(state))
+    };
+    const updated = [newCheckpoint, ...localCheckpoints].slice(0, 10);
+    setLocalCheckpoints(updated);
+    localStorage.setItem('esaar_checkpoints', JSON.stringify(updated));
+    alert("چیک پوائنٹ محفوظ ہو گیا۔");
+  };
+
+  const restoreQuickCheckpoint = (checkpoint: any) => {
+    if (window.confirm("Restore this checkpoint?")) {
+      onUpdateState(checkpoint.data);
+    }
+  };
+
+  const deleteCheckpoint = (id: string) => {
+    const updated = localCheckpoints.filter(c => c.id !== id);
+    setLocalCheckpoints(updated);
+    localStorage.setItem('esaar_checkpoints', JSON.stringify(updated));
+  };
+
+  const handleExportData = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `esaar_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        onUpdateState(json);
+        alert("ڈیٹا بحال ہو گیا۔");
+      } catch (err) { alert("Invalid file."); }
+    };
+    reader.readAsText(file);
+  };
+
   const executeAgentDeletion = () => {
     if (!collectorToDelete) return;
     const id = collectorToDelete.id;
@@ -245,6 +215,36 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     const nextDonors = donorsListRaw.map(d => d.assignedCollectorId === id ? { ...d, assignedCollectorId: null } : d);
     onUpdateState({ collectors: nextCollectors, donors: nextDonors });
     setCollectorToDelete(null);
+  };
+
+  const handlePerformDeepReset = () => {
+    if (!isSuperAdmin) return;
+    setIsResetting(true);
+    setShowResetConfirmModal(false);
+
+    try {
+      const resetDonors = (state.donors || []).map(donor => ({
+        ...donor,
+        status: 'PENDING' as const,
+        lastPaymentDate: null
+      }));
+
+      onUpdateState({
+        donationHistory: [],
+        donors: resetDonors,
+        currentMonthKey: ""
+      });
+
+      setTimeout(() => {
+        setIsResetting(false);
+        setShowSystemMaintenance(false);
+        setActiveTab('dashboard');
+        alert("سسٹم کامیابی سے ری سیٹ کر دیا گیا ہے۔");
+      }, 1000);
+    } catch (err) {
+      setIsResetting(false);
+      alert("Error during reset.");
+    }
   };
 
   const handleWhatsAppShare = () => {
@@ -260,6 +260,101 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     
     const message = header + summary + `*DETAILS:*\n` + donorLines;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  // --- THE ISOLATED WINDOW PRINT METHOD ---
+  const handlePrintReport = () => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      alert("Please allow pop-ups to print the report.");
+      return;
+    }
+
+    const rowsHtml = comprehensiveHistory.map((row, idx) => `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 12px; text-align: center;">${idx + 1}</td>
+        <td style="padding: 12px;"><strong>${row.name}</strong><br><small style="color: #666;">${row.phone}</small></td>
+        <td style="padding: 12px; font-size: 11px; text-transform: uppercase;">${collectorsRaw.find(c => c.id === row.assignedCollectorId)?.name || 'Office'}</td>
+        <td style="padding: 12px; font-weight: bold; color: ${row.status === 'COLLECTED' ? '#10b981' : '#ef4444'}; text-transform: uppercase; font-size: 11px;">${row.status}</td>
+        <td style="padding: 12px; text-align: right; font-weight: bold;">Rs. ${row.monthlyAmount.toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Esaar Blood Bank Report - ${monthName}</title>
+        <style>
+          body { font-family: 'Inter', -apple-system, sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #fff; }
+          .header { text-align: center; border-bottom: 4px double #1e293b; padding-bottom: 20px; margin-bottom: 30px; }
+          .header h1 { margin: 0; font-size: 32px; letter-spacing: -1px; text-transform: uppercase; }
+          .header p { margin: 5px 0; font-weight: bold; font-size: 14px; color: #64748b; letter-spacing: 2px; }
+          .summary { display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 13px; }
+          .summary-box { background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; }
+          .main-table { width: 100%; border-collapse: collapse; margin-bottom: 50px; }
+          .main-table th { background: #1e293b; color: #fff; padding: 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+          .footer { margin-top: 80px; display: flex; justify-content: space-around; }
+          .sig-box { border-top: 1px solid #cbd5e1; width: 200px; text-align: center; padding-top: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #64748b; }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Esaar Blood Bank</h1>
+          <p>Monthly Donation Audit Report</p>
+        </div>
+
+        <div class="summary">
+          <div class="summary-box">
+            <strong>Area:</strong> ${selectedCityFilter}<br>
+            <strong>Month:</strong> ${monthName}<br>
+            <strong>Date:</strong> ${new Date().toLocaleDateString()}
+          </div>
+          <div class="summary-box" style="text-align: right;">
+            <strong>Total Donors:</strong> ${comprehensiveHistory.length}<br>
+            <span style="font-size: 18px; color: #10b981; font-weight: 900;">Collected: Rs. ${historyTotalSum.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <table class="main-table">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">S#</th>
+              <th>Donor Name & Contact</th>
+              <th>Assigned Agent</th>
+              <th>Status</th>
+              <th style="text-align: right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div class="sig-box">Auditor Signature</div>
+          <div class="sig-box">Manager Stamp</div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              window.close();
+            }, 750);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(reportHtml);
+    printWindow.document.close();
   };
 
   if (showAreaManagement) {
@@ -427,7 +522,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
 
   return (
     <div className="p-4 md:p-8 space-y-6 min-h-screen pb-24">
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2 no-print">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-2">
         <button onClick={() => setShowAreaManagement(true)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm" title="Area Settings"><Settings className="w-5 h-5" /></button>
         {isSuperAdmin && (
           <button onClick={() => setShowSystemMaintenance(true)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm" title="System Backup"><Database className="w-5 h-5" /></button>
@@ -438,7 +533,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
         ))}
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 no-print">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-1 bg-white p-1.5 rounded-[22px] border border-slate-100 shadow-sm overflow-x-auto scrollbar-hide w-full md:w-auto">
           {[
             { id: 'dashboard', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
@@ -455,7 +550,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       </div>
 
       {activeTab === 'dashboard' && (
-        <div className="space-y-8 animate-in fade-in duration-300 no-print">
+        <div className="space-y-8 animate-in fade-in duration-300">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <StatCard label="Monthly Target" value={`Rs. ${totalTarget.toLocaleString()}`} icon={<Building2 />} color="text-blue-600" />
             <StatCard label="Collected" value={`Rs. ${historyTotalSum.toLocaleString()}`} icon={<CheckCircle2 />} color="text-emerald-600" />
@@ -512,7 +607,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       )}
 
       {activeTab === 'donors' && (
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-300 no-print">
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
           <div className="p-8 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight flex-1">Donors List</h2>
             <div className="flex flex-wrap items-center gap-4">
@@ -552,7 +647,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       )}
 
       {activeTab === 'collectors' && (
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-300 no-print">
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
           <div className="p-8 border-b border-slate-100 flex justify-between items-center">
              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Agents (Collectors)</h2>
              <button onClick={() => setShowAddCollectorModal(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg"><UserPlus className="w-4 h-4" /> Add Agent</button>
@@ -600,17 +695,16 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       )}
 
       {activeTab === 'history' && (
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-300 no-print">
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
           <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex-1">
               <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Collection Status Board</h2>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Audit for {monthName} in {selectedCityFilter}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {/* WhatsApp and Print buttons */}
               <div className="flex items-center gap-2 mr-2">
                 <button onClick={handleWhatsAppShare} className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Share on WhatsApp"><MessageCircle className="w-5 h-5" /></button>
-                <button onClick={() => window.print()} className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Print Report"><Printer className="w-5 h-5" /></button>
+                <button onClick={handlePrintReport} className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg active:scale-95" title="Print Professional Report"><Printer className="w-5 h-5" /></button>
               </div>
               <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
                  <button onClick={() => setStatusFilter('ALL')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === 'ALL' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:bg-slate-100'}`}>All</button>
@@ -635,39 +729,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
               </tbody>
               <tfoot className="bg-slate-900 text-white"><tr className="font-black"><td colSpan={4} className="px-10 py-10 uppercase tracking-widest text-[11px]">Total Area Collection (Paid Only)</td><td className="px-10 py-10 text-right text-3xl text-emerald-400">Rs. {historyTotalSum.toLocaleString()}</td></tr></tfoot>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* Printable Report (Moved outside of the conditional tab content to avoid inheritance of 'no-print' or parent hiding) */}
-      {activeTab === 'history' && (
-        <div id="printable-report" className="hidden print:block p-10 bg-white">
-          <div className="text-center mb-10 border-b-2 border-slate-900 pb-8">
-             <h1 className="text-4xl font-black uppercase tracking-tight">Esaar Blood Bank</h1>
-             <p className="text-xl font-bold text-slate-500 uppercase tracking-[0.2em] mt-2">Monthly Status Report</p>
-             <div className="flex justify-between items-end mt-8">
-                <div className="text-left"><p className="text-[10px] font-black uppercase text-slate-400">Month</p><p className="font-black text-lg">{monthName}</p></div>
-                <div className="text-left"><p className="text-[10px] font-black uppercase text-slate-400">Area</p><p className="font-black text-lg">{selectedCityFilter}</p></div>
-                <div className="text-right"><p className="text-[10px] font-black uppercase text-slate-400">Total Collected</p><p className="font-black text-2xl text-emerald-600">Rs. {historyTotalSum.toLocaleString()}</p></div>
-             </div>
-          </div>
-          <table className="w-full text-left border-collapse">
-             <thead><tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-widest"><th className="py-4">Donor Name</th><th className="py-4">Phone</th><th className="py-4">Agent</th><th className="py-4">Status</th><th className="py-4 text-right">Amount</th></tr></thead>
-             <tbody className="divide-y divide-slate-200">
-                {comprehensiveHistory.map(row => (
-                   <tr key={row.id} className="text-sm">
-                      <td className="py-4 font-bold">{row.name}</td>
-                      <td className="py-4">{row.phone}</td>
-                      <td className="py-4 text-[10px] font-black uppercase">{collectorsRaw.find(c => c.id === row.assignedCollectorId)?.name || 'Office'}</td>
-                      <td className="py-4 font-black uppercase text-[10px]">{row.status}</td>
-                      <td className="py-4 text-right font-black">Rs. {row.monthlyAmount.toLocaleString()}</td>
-                   </tr>
-                ))}
-             </tbody>
-          </table>
-          <div className="mt-20 flex justify-between">
-             <div className="text-center border-t border-slate-300 pt-2 px-10"><p className="text-[10px] font-black uppercase">Prepared By</p></div>
-             <div className="text-center border-t border-slate-300 pt-2 px-10"><p className="text-[10px] font-black uppercase">Authorized Signature</p></div>
           </div>
         </div>
       )}
@@ -771,7 +832,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       )}
 
       {showAddCollectorModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 no-print">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
           <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 relative"><button onClick={() => setShowAddCollectorModal(false)} className="absolute right-8 top-8 p-2 hover:bg-slate-100 rounded-full transition-colors"><X className="w-6 h-6 text-slate-400" /></button><h3 className="text-xl font-black text-slate-900 uppercase mb-6">New Collection Agent</h3><div className="space-y-4 mb-8"><InputGroup label="Agent Name" value={newCollectorData.name} onChange={v => setNewCollectorData({...newCollectorData, name: v})} /><InputGroup label="Phone Number" value={newCollectorData.phone} onChange={v => setNewCollectorData({...newCollectorData, phone: v})} /><InputGroup label="Username" value={newCollectorData.username} onChange={v => setNewCollectorData({...newCollectorData, username: v})} /><InputGroup label="Password" value={newCollectorData.password} onChange={v => setNewCollectorData({...newCollectorData, password: v})} /><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Assigned Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm" value={newCollectorData.city} onChange={e => setNewCollectorData({...newCollectorData, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div></div><button onClick={() => { if (!newCollectorData.username || !newCollectorData.name) return; const collector: User = { id: Math.random().toString(36).substr(2,9), name: newCollectorData.name, phone: newCollectorData.phone, role: UserRole.COLLECTOR, username: newCollectorData.username, password: newCollectorData.password, city: newCollectorData.city }; onUpdateState({ collectors: [...collectorsRaw, collector] }); setShowAddCollectorModal(false); setNewCollectorData({ name: '', phone: '', username: '', password: '1234', city: citiesRaw[0] || '' }); }} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl">Create Account</button></div>
         </div>
       )}

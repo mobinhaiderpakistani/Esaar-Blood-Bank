@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, User, UserRole } from './types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
@@ -177,7 +176,7 @@ const App: React.FC = () => {
       </main>
 
       {isAdminPassModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 no-print">
           <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-8">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs">{state.currentUser.role === UserRole.SUPER_ADMIN ? 'Super Admin Security' : 'Admin Security'}</h3>
