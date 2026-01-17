@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, User, UserRole } from './types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
@@ -29,12 +30,11 @@ const App: React.FC = () => {
     collectors: INITIAL_COLLECTORS,
     donationHistory: [],
     cities: CITIES,
-    currentMonthKey: "2026-01", // Start with Jan 2026 as per user request
+    currentMonthKey: "2026-01", 
     adminPassword: "admin",
     superAdminPassword: "superadmin"
   }));
 
-  // Temporarily fill out for testing as requested
   const [usernameInput, setUsernameInput] = useState('superadmin');
   const [passwordInput, setPasswordInput] = useState('superadmin');
   const [error, setError] = useState('');
@@ -63,11 +63,14 @@ const App: React.FC = () => {
           collectors: ensureArray(cloudData.collectors),
           donationHistory: ensureArray(cloudData.donationHistory),
           cities: ensureArray(cloudData.cities),
+          // FORCE currentMonthKey if it's missing or corrupted in cloud
+          currentMonthKey: cloudData.currentMonthKey || "2026-01",
           adminPassword: cloudData.adminPassword || "admin",
           superAdminPassword: cloudData.superAdminPassword || "superadmin",
           currentUser: prev.currentUser 
         }));
       } else {
+        // Initial setup for fresh database
         dbRef.set({
           donors: INITIAL_DONORS,
           collectors: INITIAL_COLLECTORS,
@@ -86,13 +89,22 @@ const App: React.FC = () => {
   const updateGlobalState = useCallback((newState: Partial<AppState>) => {
     if (!firebase) return;
     
-    setState(prev => ({ ...prev, ...newState }));
-
-    firebase.database().ref('esaar_state').update(newState)
-      .catch((err: any) => {
-        console.error("Firebase Error:", err);
-        alert("ڈیٹا اپڈیٹ کرنے میں مسئلہ پیش آیا ہے۔");
+    setState(prev => {
+      const updatedFullState = { ...prev, ...newState };
+      
+      // Explicitly update individual fields to ensure persistence
+      firebase.database().ref('esaar_state').update({
+        donors: updatedFullState.donors,
+        collectors: updatedFullState.collectors,
+        donationHistory: updatedFullState.donationHistory,
+        cities: updatedFullState.cities,
+        currentMonthKey: updatedFullState.currentMonthKey,
+        adminPassword: updatedFullState.adminPassword || "admin",
+        superAdminPassword: updatedFullState.superAdminPassword || "superadmin"
       });
+
+      return updatedFullState;
+    });
   }, []);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -121,7 +133,6 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setState(prev => ({ ...prev, currentUser: null }));
-    // Reset inputs for security after logout, but keeping them filled for now as per test request
     setUsernameInput('superadmin');
     setPasswordInput('superadmin');
   };
@@ -141,11 +152,11 @@ const App: React.FC = () => {
   if (!state.currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="max-w-md w-full">
+        <div className="max-w-md w-full animate-in fade-in zoom-in duration-500">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center bg-red-600 p-4 rounded-[28px] shadow-2xl mb-6"><Droplets className="text-white w-12 h-12" /></div>
+            <div className="inline-flex items-center justify-center bg-red-600 p-4 rounded-[28px] shadow-2xl mb-6 shadow-red-200"><Droplets className="text-white w-12 h-12" /></div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Esaar Blood Bank</h1>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">v2.8.2 Cloud Platform</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">v3.6.0 Cloud Platform</p>
           </div>
           <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
             <form onSubmit={handleLogin} className="space-y-6">

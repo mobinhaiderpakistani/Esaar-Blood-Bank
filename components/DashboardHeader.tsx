@@ -23,7 +23,7 @@ const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick }) =>
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 Cloud Live
               </div>
-              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">v2.8.2</span>
+              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">v3.6.0</span>
             </div>
           </div>
         </div>
