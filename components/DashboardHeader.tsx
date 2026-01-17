@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { User, UserRole } from '../types';
 import { LogOut, Droplets, User as UserIcon, Settings } from 'lucide-react';
@@ -19,9 +18,12 @@ const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick }) =>
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-xl font-bold text-slate-800 tracking-tight">Esaar Blood Bank</span>
-            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-500">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              Cloud Live
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-500">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                Cloud Live
+              </div>
+              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">v2.8.2</span>
             </div>
           </div>
         </div>

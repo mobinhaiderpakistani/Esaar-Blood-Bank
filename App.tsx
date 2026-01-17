@@ -29,13 +29,14 @@ const App: React.FC = () => {
     collectors: INITIAL_COLLECTORS,
     donationHistory: [],
     cities: CITIES,
-    currentMonthKey: "",
+    currentMonthKey: "2026-01", // Start with Jan 2026 as per user request
     adminPassword: "admin",
     superAdminPassword: "superadmin"
   }));
 
-  const [usernameInput, setUsernameInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
+  // Temporarily fill out for testing as requested
+  const [usernameInput, setUsernameInput] = useState('superadmin');
+  const [passwordInput, setPasswordInput] = useState('superadmin');
   const [error, setError] = useState('');
   const [collectorTab, setCollectorTab] = useState<'pending' | 'history'>('pending');
   const [isAdminPassModalOpen, setIsAdminPassModalOpen] = useState(false);
@@ -72,7 +73,7 @@ const App: React.FC = () => {
           collectors: INITIAL_COLLECTORS,
           donationHistory: [],
           cities: CITIES,
-          currentMonthKey: "",
+          currentMonthKey: "2026-01",
           adminPassword: "admin",
           superAdminPassword: "superadmin"
         });
@@ -85,14 +86,12 @@ const App: React.FC = () => {
   const updateGlobalState = useCallback((newState: Partial<AppState>) => {
     if (!firebase) return;
     
-    // فورا لوکل سٹیٹ اپڈیٹ کریں
     setState(prev => ({ ...prev, ...newState }));
 
-    // فائر بیس پر ڈیٹا بھیجیں
     firebase.database().ref('esaar_state').update(newState)
       .catch((err: any) => {
         console.error("Firebase Error:", err);
-        alert("ڈیٹا اپڈیٹ کرنے میں مسئلہ پیش آیا ہے۔ انٹرنیٹ چیک کریں۔");
+        alert("ڈیٹا اپڈیٹ کرنے میں مسئلہ پیش آیا ہے۔");
       });
   }, []);
 
@@ -122,8 +121,9 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setState(prev => ({ ...prev, currentUser: null }));
-    setUsernameInput('');
-    setPasswordInput('');
+    // Reset inputs for security after logout, but keeping them filled for now as per test request
+    setUsernameInput('superadmin');
+    setPasswordInput('superadmin');
   };
 
   const changeAdminPassword = () => {
@@ -145,11 +145,18 @@ const App: React.FC = () => {
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center bg-red-600 p-4 rounded-[28px] shadow-2xl mb-6"><Droplets className="text-white w-12 h-12" /></div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Esaar Blood Bank</h1>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">v2.8.2 Cloud Platform</p>
           </div>
           <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
             <form onSubmit={handleLogin} className="space-y-6">
-              <input type="text" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" placeholder="Username" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} />
-              <input type="password" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" placeholder="Password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} />
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Username</label>
+                <input type="text" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Password</label>
+                <input type="password" className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} />
+              </div>
               {error && <p className="text-red-500 text-xs font-bold text-center">{error}</p>}
               <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[22px] font-black hover:bg-black transition-all">Login</button>
             </form>
@@ -177,7 +184,7 @@ const App: React.FC = () => {
 
       {isAdminPassModalOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 no-print">
-          <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-8">
+          <div className="bg-white w-full max-sm rounded-[32px] shadow-2xl p-8">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs">{state.currentUser.role === UserRole.SUPER_ADMIN ? 'Super Admin Security' : 'Admin Security'}</h3>
               <button onClick={() => setIsAdminPassModalOpen(false)}><X className="w-5 h-5 text-slate-300"/></button>
