@@ -29,7 +29,10 @@ import {
   Table as TableIcon,
   Save,
   ArrowLeft,
-  Info
+  Info,
+  CalendarRange,
+  // Added Clock import to fix the error
+  Clock
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -391,6 +394,16 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     })
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
 
+  const roadmapMonths = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const key = `${yearNum}-${String(m).padStart(2, '0')}`;
+    const name = new Date(yearNum, i, 1).toLocaleString('default', { month: 'long' });
+    return { key, name, monthIndex: m };
+  });
+
+  const createdRoadmap = roadmapMonths.filter(m => m.key <= activeMonthKey);
+  const upcomingRoadmap = roadmapMonths.filter(m => m.key > activeMonthKey);
+
   if (showAreaManagement) {
     return (
       <div className="p-8 animate-in fade-in duration-300">
@@ -724,6 +737,57 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                 <h3 className="text-lg font-black mb-2 uppercase">Restore Data</h3>
                 <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Upload JSON file to restore</p>
                 <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Import Backup</button>
+              </div>
+           </div>
+
+           {/* Calendar Roadmap Box */}
+           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                    <div className="p-3 bg-red-50 rounded-2xl text-red-600"><CalendarRange className="w-6 h-6" /></div>
+                    <div>
+                        <h3 className="text-xl font-black uppercase">Calendar Roadmap</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yearly Cycle Overview</p>
+                    </div>
+                 </div>
+                 <div className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-sm tracking-widest">
+                    {yearNum}
+                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                 <div className="p-8 border-r border-slate-100 bg-slate-50/30">
+                    <h4 className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-6 flex items-center gap-2">
+                       <CheckCircle2 className="w-3 h-3" /> Created Lists
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                       {createdRoadmap.map(m => (
+                          <div key={m.key} className={`flex items-center justify-between p-4 rounded-2xl border ${m.key === activeMonthKey ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg scale-105' : 'bg-white text-slate-600 border-slate-100'}`}>
+                             <span className="font-black text-[11px] uppercase">{m.name}</span>
+                             {m.key === activeMonthKey ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+                 <div className="p-8 bg-white">
+                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6 flex items-center gap-2">
+                       <Clock className="w-3 h-3" /> Upcoming Lists
+                    </h4>
+                    {upcomingRoadmap.length > 0 ? (
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {upcomingRoadmap.map(m => (
+                             <div key={m.key} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 text-slate-400">
+                                <span className="font-black text-[11px] uppercase">{m.name}</span>
+                                <Calendar className="w-3 h-3 opacity-30" />
+                             </div>
+                          ))}
+                       </div>
+                    ) : (
+                       <div className="py-10 text-center">
+                          <AlertCircle className="w-8 h-8 text-slate-100 mx-auto mb-2" />
+                          <p className="text-[10px] font-black text-slate-300 uppercase">Year cycle complete</p>
+                       </div>
+                    )}
+                 </div>
               </div>
            </div>
 
