@@ -20,7 +20,8 @@ import {
   EyeOff, 
   Calendar, 
   ClipboardList, 
-  Phone
+  Phone,
+  Edit3
 } from 'lucide-react';
 
 interface Props {
@@ -38,6 +39,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
   const [lastProcessedDonor, setLastProcessedDonor] = useState<{name: string, amount: number, phone: string} | null>(null);
   const [pendingSelection, setPendingSelection] = useState<Donor | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'ONLINE'>('CASH');
+  const [manualAmount, setManualAmount] = useState<string>('');
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -97,15 +99,27 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
+  const handleOpenCollectModal = (donor: Donor) => {
+    const balance = getDonorBalance(donor);
+    setPendingSelection(donor);
+    setManualAmount(balance.toString()); // Default to full balance
+    setSelectedPaymentMethod('CASH');
+  };
+
   const handleCollect = () => {
     if (!pendingSelection) return;
-    const totalDue = getDonorBalance(pendingSelection);
+    const amountToRecord = Number(manualAmount);
+
+    if (isNaN(amountToRecord) || amountToRecord <= 0) {
+      alert("Please enter a valid amount greater than zero.");
+      return;
+    }
 
     const newRecord: DonationRecord = {
       id: Math.random().toString(36).substr(2, 9),
       donorId: pendingSelection.id,
       donorName: pendingSelection.name,
-      amount: totalDue,
+      amount: amountToRecord,
       collectorId: user.id,
       collectorName: user.name,
       date: new Date().toISOString(),
@@ -118,7 +132,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
     );
 
     onUpdateState({ donors: updatedDonors, donationHistory: [newRecord, ...state.donationHistory] });
-    setLastProcessedDonor({ name: pendingSelection.name, amount: totalDue, phone: pendingSelection.phone });
+    setLastProcessedDonor({ name: pendingSelection.name, amount: amountToRecord, phone: pendingSelection.phone });
     setIsSuccessModalOpen(true);
     setPendingSelection(null);
   };
@@ -196,7 +210,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
             </div>
           ) : (
             pendingDonors.map(donor => (
-              <div key={donor.id} onClick={() => setPendingSelection(donor)} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer hover:shadow-md">
+              <div key={donor.id} onClick={() => handleOpenCollectModal(donor)} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer hover:shadow-md">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-black text-slate-900 tracking-tight text-base">{donor.name}</span>
@@ -250,7 +264,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
         </div>
       )}
 
-      {/* COLLECTION MODAL */}
+      {/* COLLECTION MODAL (Improved for Partial Payments) */}
       {pendingSelection && (
         <div className="fixed inset-0 z-[5000] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 animate-in slide-in-from-bottom duration-300">
@@ -264,10 +278,26 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
               </button>
             </div>
 
-            <div className="bg-slate-50 p-6 rounded-3xl mb-6">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Receivable</p>
-              {/* Fix: Use getDonorBalance(pendingSelection) instead of accessing non-existent totalBalance property */}
-              <p className="text-3xl font-black text-slate-900 tracking-tighter">Rs. {getDonorBalance(pendingSelection).toLocaleString()}</p>
+            <div className="bg-slate-50 p-6 rounded-3xl mb-6 flex items-center justify-between group">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                  Collection Amount <Edit3 className="w-2.5 h-2.5" />
+                </p>
+                <div className="flex items-center">
+                  <span className="text-2xl font-black text-slate-900 mr-1">Rs.</span>
+                  <input 
+                    type="number" 
+                    className="bg-transparent text-2xl font-black text-slate-900 outline-none w-full border-b border-transparent focus:border-red-200 transition-all"
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="text-right ml-4">
+                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Full Due</p>
+                <p className="text-xs font-black text-slate-400">Rs. {getDonorBalance(pendingSelection).toLocaleString()}</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-8">
@@ -288,7 +318,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
             </div>
 
             <button onClick={(e) => { e.stopPropagation(); handleCollect(); }} className="w-full py-5 bg-red-600 text-white rounded-[22px] font-black uppercase tracking-widest shadow-xl shadow-red-100 active:scale-95 transition-all">
-              Mark as Collected
+              Record Collection
             </button>
           </div>
         </div>

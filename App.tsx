@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, User, UserRole } from './types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
