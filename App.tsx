@@ -119,7 +119,6 @@ const App: React.FC = () => {
     const timePart = now.toTimeString().split(' ')[0].replace(/:/g, '-');
     const fileName = `esaar_backup_${datePart}_${timePart}.json`;
 
-    // 1. Mobile "Save As" (Via Share Sheet)
     if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       try {
         const file = new File([jsonString], fileName, { type: 'application/json' });
@@ -134,7 +133,6 @@ const App: React.FC = () => {
       }
     }
 
-    // 2. Desktop "Save As" (Via File Picker)
     if ('showSaveFilePicker' in window) {
       try {
         const handle = await (window as any).showSaveFilePicker({
@@ -153,7 +151,6 @@ const App: React.FC = () => {
       }
     }
 
-    // 3. Fallback: Direct Download
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -213,7 +210,7 @@ const App: React.FC = () => {
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center bg-red-600 p-4 rounded-[28px] shadow-2xl mb-6 shadow-red-200"><Droplets className="text-white w-12 h-12" /></div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Esaar Blood Bank</h1>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">v3.6.0 Cloud Platform</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">v3.7.0 Cloud Platform</p>
           </div>
           <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
             <form onSubmit={handleLogin} className="space-y-6">

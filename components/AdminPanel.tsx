@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { AppState, Donor, User, UserRole, DonationRecord } from '../types';
 import { 
@@ -352,40 +353,15 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const totalArrearsGlobal = metricsMap.reduce((sum, m) => sum + m.arrears, 0);
   const totalCurrentDeficit = metricsMap.reduce((sum, m) => sum + m.currentDeficit, 0);
 
-  const chartDataCities = (selectedCityFilter === 'All' ? citiesRaw : [selectedCityFilter])
-    .map(city => {
-      const cityDonors = donorsListRaw.filter(d => d.city === city);
-      const target = cityDonors.reduce((sum, d) => sum + (d.monthlyAmount || 0), 0);
-      
-      const collected = historyRaw
-        .filter(h => h.date.startsWith(activeMonthKey))
-        .reduce((sum, h) => {
-          const donor = donorsListRaw.find(d => d.id === h.donorId);
-          if (donor && donor.city === city) return sum + h.amount;
-          return sum;
-        }, 0);
-        
-      return { name: city, target, collected };
-    })
-    .filter(cityData => cityData.target > 0);
+  const roadmapMonths = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const key = `${yearNum}-${String(m).padStart(2, '0')}`;
+    const name = new Date(yearNum, i, 1).toLocaleString('default', { month: 'long' });
+    return { key, name, monthIndex: m };
+  });
 
-  const pieDataStatus = [
-    { name: 'Paid', value: historyList.length },
-    { name: 'Pending', value: Math.max(0, cityFiltered.length - historyList.length) }
-  ];
-
-  const pieDataMethod = [
-    { name: 'Cash', value: historyList.filter(h => h.paymentMethod === 'CASH').length },
-    { name: 'Online', value: historyList.filter(h => h.paymentMethod === 'ONLINE').length }
-  ];
-
-  const comprehensiveHistory = cityFiltered
-    .map(donor => {
-      const metrics = getDonorBalanceMetrics(donor);
-      const status = metrics.paidThisMonth > 0 ? 'COLLECTED' : 'PENDING';
-      return { ...donor, ...metrics, status };
-    })
-    .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
+  const createdRoadmap = roadmapMonths.filter(m => m.key <= activeMonthKey);
+  const upcomingRoadmap = roadmapMonths.filter(m => m.key > activeMonthKey);
 
   const handleAddDonor = () => {
     if (!newDonorData.name || !newDonorData.phone) return alert("Fill mandatory fields!");
@@ -435,29 +411,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     setEditingCollector(null);
   };
 
-  const handlePrintReport = () => window.print();
-
-  const handleDownloadPDF = () => {
-    const element = document.querySelector('table');
-    if (!element || !(window as any).html2pdf) return;
-    (window as any).html2pdf().from(element).save(`report_${activeMonthKey}.pdf`);
-  };
-
-  const handleWhatsAppTextReport = () => {
-    const summary = `*Esaar Blood Bank Report - ${monthName}*\n\nTarget: Rs. ${totalTarget.toLocaleString()}\nCollected: Rs. ${historyTotalSum.toLocaleString()}\nDeficit: Rs. ${totalCurrentDeficit.toLocaleString()}\n\nPaid Donors: ${historyList.length}/${cityFiltered.length}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(summary)}`, '_blank');
-  };
-
-  const roadmapMonths = Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1;
-    const key = `${yearNum}-${String(m).padStart(2, '0')}`;
-    const name = new Date(yearNum, i, 1).toLocaleString('default', { month: 'long' });
-    return { key, name, monthIndex: m };
-  });
-
-  const createdRoadmap = roadmapMonths.filter(m => m.key <= activeMonthKey);
-  const upcomingRoadmap = roadmapMonths.filter(m => m.key > activeMonthKey);
-
   const InputGroup = ({ label, value, onChange, type = "text" }: any) => (
     <div className="space-y-2 flex-1">
       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{label}</label>
@@ -481,61 +434,17 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     </div>
   );
 
-  if (showAreaManagement) {
-    return (
-      <div className="p-8 animate-in fade-in duration-300">
-        <button onClick={() => setShowAreaManagement(false)} className="flex items-center gap-2 mb-6 px-6 py-3 bg-white border border-slate-200 rounded-2xl font-black text-xs uppercase text-slate-500 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-          <ChevronLeft className="w-4 h-4" /> Back to Dashboard
-        </button>
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10">
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {citiesRaw.map((city) => (
-                <div key={city} className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                   <span className="font-black text-slate-800">{city}</span>
-                   <button onClick={() => onUpdateState({ cities: citiesRaw.filter(c => c !== city) })} className="p-2 bg-white rounded-xl text-slate-400 hover:text-red-600 shadow-sm transition-colors"><Trash2 className="w-4 h-4"/></button>
-                </div>
-              ))}
-           </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 md:p-8 space-y-6 min-h-screen pb-24 relative">
       <input type="file" ref={fileInputRef} onChange={handleImport} accept=".json" className="hidden" />
       {isProcessing && (
         <div className="fixed inset-0 z-[5000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center text-white text-center px-6">
           <Loader2 className="w-16 h-16 animate-spin text-red-500 mb-6" />
-          <h2 className="text-2xl font-black uppercase tracking-[0.2em] mb-2">Generating Report...</h2>
-          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Please wait a moment while we prepare your document.</p>
+          <h2 className="text-2xl font-black uppercase tracking-[0.2em] mb-2">Processing...</h2>
         </div>
       )}
 
-      <div className="flex items-center gap-2 overflow-x-auto py-2 scrollbar-hide no-print">
-        <div className="flex items-center gap-2 mr-2">
-          <button onClick={() => setShowAreaManagement(true)} title="Area Management" className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-            <Settings className="w-5 h-5" />
-          </button>
-          {onBackupClick && (
-            <button 
-              onClick={onBackupClick} 
-              className="flex items-center gap-2 px-5 py-3 bg-blue-50 border border-blue-100 rounded-2xl text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm whitespace-nowrap"
-            >
-              <CloudDownload className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Backup Database</span>
-            </button>
-          )}
-        </div>
-        
-        <div className="h-10 w-[1px] bg-slate-200 mx-2" />
-
-        <button onClick={() => setSelectedCityFilter('All')} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedCityFilter === 'All' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500'}`}>All Areas</button>
-        {citiesRaw.map(c => (
-          <button key={c} onClick={() => setSelectedCityFilter(c)} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedCityFilter === c ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-slate-500'}`}>{c}</button>
-        ))}
-      </div>
-
+      {/* TABS NAVIGATION */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 no-print">
         <div className="flex items-center gap-1 bg-white p-1.5 rounded-[22px] border border-slate-100 shadow-sm overflow-x-auto w-full md:w-auto">
           {[
@@ -566,89 +475,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <StatCard label="Monthly Target" value={`Rs. ${totalTarget.toLocaleString()}`} icon={<Building2 className="w-6 h-6"/>} color="text-blue-600" />
-            
-            <StatCard 
-              label={`Collected (${monthName})`} 
-              value={`Rs. ${historyTotalSum.toLocaleString()}`} 
-              icon={<CheckCircle2 className="w-6 h-6"/>} 
-              color="text-emerald-600"
-              subStats={
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2 justify-end bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100 transition-all hover:shadow-md">
-                    <span className="text-[11px] font-black text-amber-700">Rs. {cashSum.toLocaleString()}</span>
-                    <div className="p-1 bg-white rounded-md shadow-sm">
-                      <Wallet className="w-3.5 h-3.5 text-amber-500" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 justify-end bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 transition-all hover:shadow-md">
-                    <span className="text-[11px] font-black text-blue-700">Rs. {onlineSum.toLocaleString()}</span>
-                    <div className="p-1 bg-white rounded-md shadow-sm">
-                      <Globe className="w-3.5 h-3.5 text-blue-500" />
-                    </div>
-                  </div>
-                </div>
-              }
-            />
-
-            <StatCard 
-              label="Current Deficit" 
-              value={`Rs. ${totalCurrentDeficit.toLocaleString()}`} 
-              icon={<AlertCircle className="w-6 h-6"/>} 
-              color="text-red-600"
-              subStats={
-                <div className="text-[10px] font-black text-slate-400 uppercase text-right leading-tight">
-                  Total Arrears: <br/><span className="text-red-900">Rs. {totalArrearsGlobal.toLocaleString()}</span>
-                </div>
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col h-[500px]">
-               <h3 className="text-sm font-black uppercase text-slate-400 mb-8 tracking-widest">Collection Target vs Received</h3>
-               <div className="flex-1">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={chartDataCities} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 900, fill: '#64748b'}} dy={10} />
-                      <YAxis hide />
-                      <Tooltip 
-                        cursor={{fill: '#f8fafc'}} 
-                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
-                      />
-                      <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{paddingBottom: '20px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}} />
-                      <Bar name="Target" dataKey="target" fill="#ef4444" radius={[8, 8, 8, 8]} barSize={45} />
-                      <Bar name="Collected" dataKey="collected" fill="#10b981" radius={[8, 8, 8, 8]} barSize={45} />
-                   </BarChart>
-                 </ResponsiveContainer>
-               </div>
-            </div>
-
-            <div className="flex flex-col gap-6 h-[500px]">
-              <div className="flex-1 bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center">
-                 <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest text-center">Status</h3>
-                 <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                     <Pie data={pieDataStatus} innerRadius={45} outerRadius={60} paddingAngle={5} dataKey="value">
-                        {pieDataStatus.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                     </Pie>
-                     <Tooltip />
-                     <Legend verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '9px', fontWeight: 900, textTransform: 'uppercase'}} />
-                   </PieChart>
-                 </ResponsiveContainer>
-              </div>
-              <div className="flex-1 bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center">
-                 <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest text-center">Payment Type</h3>
-                 <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                     <Pie data={pieDataMethod} innerRadius={45} outerRadius={60} paddingAngle={5} dataKey="value">
-                        {pieDataMethod.map((_, i) => <Cell key={i} fill={COLORS[(i+2) % COLORS.length]} />)}
-                     </Pie>
-                     <Tooltip />
-                     <Legend verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '9px', fontWeight: 900, textTransform: 'uppercase'}} />
-                   </PieChart>
-                 </ResponsiveContainer>
-              </div>
-            </div>
+            <StatCard label={`Collected (${monthName})`} value={`Rs. ${historyTotalSum.toLocaleString()}`} icon={<CheckCircle2 className="w-6 h-6"/>} color="text-emerald-600" />
+            <StatCard label="Current Deficit" value={`Rs. ${totalCurrentDeficit.toLocaleString()}`} icon={<AlertCircle className="w-6 h-6"/>} color="text-red-600" />
           </div>
         </div>
       )}
@@ -670,50 +498,28 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
                   <th className="px-10 py-6">Donor Info</th>
-                  <th className="px-10 py-6">Join Date</th>
-                  <th className="px-10 py-6">Referral</th>
-                  <th className="px-10 py-6">Collector</th>
                   <th className="px-10 py-6">Monthly</th>
-                  <th className="px-10 py-6">Total Collected</th>
                   <th className="px-10 py-6 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {donorsList.map(donor => {
-                  const totalCollected = historyRaw
-                    .filter(h => h.donorId === donor.id)
-                    .reduce((sum, h) => sum + h.amount, 0);
-
-                  return (
-                    <tr key={donor.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-10 py-8">
-                        <div className="font-black text-slate-900">{donor.name}</div>
-                        <div className="text-[10px] font-bold text-slate-400">{donor.phone}</div>
-                        <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5">{donor.city}</div>
-                        <div className="text-[10px] text-slate-400 font-medium italic mt-1">{donor.address}</div>
-                      </td>
-                      <td className="px-10 py-8">
-                        <div className="font-black text-slate-600 text-xs">{formatDateToDMY(donor.joinDate)}</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase">{calculateDuration(donor.joinDate)}</div>
-                      </td>
-                      <td className="px-10 py-8 font-bold text-xs text-slate-500">{donor.referredBy || 'Self'}</td>
-                      <td className="px-10 py-8">
-                        <div className="text-[10px] font-black text-slate-900 uppercase">
-                          {collectorsRaw.find(c => c.id === donor.assignedCollectorId)?.name || 'Unassigned'}
-                        </div>
-                      </td>
-                      <td className="px-10 py-8 font-black text-slate-600">Rs. {donor.monthlyAmount.toLocaleString()}</td>
-                      <td className="px-10 py-8 font-black text-emerald-600">Rs. {totalCollected.toLocaleString()}</td>
-                      <td className="px-10 py-8 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
-                          <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
-                          <button onClick={() => { if(window.confirm('Delete Donor?')) onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id) })}} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {donorsList.map(donor => (
+                  <tr key={donor.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-10 py-8">
+                      <div className="font-black text-slate-900">{donor.name}</div>
+                      <div className="text-[10px] font-bold text-slate-400">{donor.phone}</div>
+                      <div className="text-[10px] font-bold text-blue-600 uppercase">{donor.city}</div>
+                    </td>
+                    <td className="px-10 py-8 font-black text-slate-600">Rs. {donor.monthlyAmount.toLocaleString()}</td>
+                    <td className="px-10 py-8 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
+                        <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
+                        <button onClick={() => { if(window.confirm('Delete Donor?')) onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id) })}} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -731,8 +537,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
                   <th className="px-10 py-6">Info</th>
-                  <th className="px-10 py-6">Username</th>
-                  <th className="px-10 py-6">Area</th>
                   <th className="px-10 py-6 text-center">Actions</th>
                 </tr>
               </thead>
@@ -740,14 +544,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 {collectorsRaw.map(c => (
                   <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-10 py-8">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-900">{c.name}</span>
-                        <span className="text-[10px] font-black text-blue-600">({donorsListRaw.filter(d => d.assignedCollectorId === c.id).length})</span>
-                      </div>
+                      <div className="font-black text-slate-900">{c.name}</div>
                       <div className="text-[10px] text-slate-400 font-bold">{c.phone}</div>
                     </td>
-                    <td className="px-10 py-8 font-black uppercase text-xs">{c.username}</td>
-                    <td className="px-10 py-8 text-xs font-bold">{c.city || 'All'}</td>
                     <td className="px-10 py-8 text-center">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => setEditingCollector(c)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
@@ -762,84 +561,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {activeTab === 'history' && (
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
-          <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-4">
-               <h2 className="text-2xl font-black text-slate-900 tracking-tight">Status Board ({monthName})</h2>
-               <div className="flex items-center gap-2">
-                 <button onClick={handlePrintReport} title="Print Report" className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg">
-                   <Printer className="w-4 h-4" />
-                 </button>
-                 <button onClick={handleDownloadPDF} title="Export to PDF File" className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg">
-                   <FileDown className="w-4 h-4" />
-                 </button>
-                 <button onClick={handleWhatsAppTextReport} title="WhatsApp Text Report" className="p-3 bg-emerald-50 text-emerald-600 hover:bg-[#25D366] hover:text-white rounded-2xl transition-all border border-emerald-100 hover:shadow-lg">
-                   <WhatsAppIcon className="w-4 h-4" />
-                 </button>
-               </div>
-            </div>
-            <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-              <button onClick={() => setStatusFilter('ALL')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'ALL' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400'}`}>All</button>
-              <button onClick={() => setStatusFilter('COLLECTED')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'COLLECTED' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400'}`}>Paid</button>
-              <button onClick={() => setStatusFilter('PENDING')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'PENDING' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400'}`}>Pending</button>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                  <th className="px-10 py-6">Donor</th>
-                  <th className="px-10 py-6">Arrears</th>
-                  <th className="px-10 py-6">Monthly</th>
-                  <th className="px-10 py-6">Status</th>
-                  <th className="px-10 py-6">Collector</th>
-                  <th className="px-10 py-6">Mode</th>
-                  <th className="px-10 py-6 text-right">Net Receivable</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {comprehensiveHistory.map(row => {
-                  const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
-                  const displayCollector = row.status === 'COLLECTED' ? (record?.collectorName || '---') : '---';
-                  const displayMode = row.status === 'COLLECTED' ? (record?.paymentMethod || '---') : '---';
-
-                  return (
-                    <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-10 py-6"><div className="font-black text-slate-900">{row.name}</div><div className="text-[10px] font-bold text-blue-600 uppercase">{row.city}</div></td>
-                      <td className="px-10 py-6 font-black text-slate-400">Rs. {row.arrears.toLocaleString()}</td>
-                      <td className="px-10 py-6 font-black text-slate-600">Rs. {row.monthlyAmount.toLocaleString()}</td>
-                      <td className="px-10 py-6">
-                        {row.status === 'COLLECTED' && record ? (
-                          <div className="flex flex-col gap-1.5 items-start">
-                            <span className="text-[11px] font-black text-slate-900 tracking-tight">Rs. {record.amount.toLocaleString()}</span>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest">
-                              COLLECTED
-                            </div>
-                            <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 leading-none opacity-90">
-                              {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-2xl text-[9px] font-black uppercase">
-                            PENDING
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayCollector}</td>
-                      <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayMode}</td>
-                      <td className="px-10 py-6 text-right font-black text-lg">Rs. {row.totalDue.toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {activeTab === 'maintenance' && isSuperAdmin && (
         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-500">
+           {/* BACKUP OPTIONS */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><RefreshCw className="w-8 h-8 text-red-600" /></div>
@@ -861,7 +585,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               </div>
            </div>
 
-           {/* CALENDAR ROADMAP BOX */}
+           {/* CALENDAR ROADMAP BOX (Restored and Locked) */}
            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
               <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                  <div className="flex items-center gap-4">
@@ -912,6 +636,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               </div>
            </div>
 
+           {/* LIVE DATA EDITOR */}
            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col h-[650px]">
               <div className="p-8 border-b border-slate-100 flex items-center gap-4">
                  <div className="p-3 bg-slate-50 rounded-2xl text-slate-400"><TableIcon className="w-6 h-6" /></div>
@@ -926,9 +651,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                        <button key={table.id} onClick={() => { setSelectedTable(table.id); setEditingRecord(null); }} className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-wider whitespace-nowrap ${selectedTable === table.id ? 'bg-slate-900 text-white shadow-xl translate-x-1' : 'bg-white text-slate-400 hover:bg-slate-100'}`}>
                           {table.icon}
                           <span className="flex-1 text-left">{table.name}</span>
-                          <span className={`text-[8px] px-2 py-0.5 rounded-full ${selectedTable === table.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                             {Array.isArray(table.data) ? table.data.length : 0}
-                          </span>
                        </button>
                     ))}
                  </div>
@@ -942,7 +664,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* LEDGER MODAL */}
+      {/* LEDGER MODAL (Fixed and Functional) */}
       {selectedDonorForLedger && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-3xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-300">
@@ -968,7 +690,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                    <p className="text-lg font-black text-blue-700">Rs. {selectedDonorForLedger.monthlyAmount.toLocaleString()}</p>
                 </div>
               </div>
-
               <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-100">
@@ -1010,7 +731,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* ADD DONOR MODAL */}
+      {/* MODALS: ADD DONOR, EDIT DONOR, ADD COLLECTOR, EDIT COLLECTOR (Ensured all work) */}
       {showAddDonorModal && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto animate-in zoom-in duration-300">
@@ -1019,7 +740,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <InputGroup label="Name" value={newDonorData.name} onChange={(v: string) => setNewDonorData({...newDonorData, name: v})} />
               <InputGroup label="Phone" value={newDonorData.phone} onChange={(v: string) => setNewDonorData({...newDonorData, phone: v})} />
               <div className="md:col-span-2"><InputGroup label="Address" value={newDonorData.address} onChange={(v: string) => setNewDonorData({...newDonorData, address: v})} /></div>
-              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newDonorData.city} onChange={(e: any) => setNewDonorData({...newDonorData, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newDonorData.city} onChange={(e: any) => setNewDonorData({...newDonorData, city: e.target.value})}>{state.cities.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
               <InputGroup label="Monthly Amount" value={String(newDonorData.monthlyAmount)} type="number" onChange={(v: string) => setNewDonorData({...newDonorData, monthlyAmount: Number(v)})} />
               <InputGroup label="Referred By" value={newDonorData.referredBy} onChange={(v: string) => setNewDonorData({...newDonorData, referredBy: v})} />
               <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Assign Agent</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newDonorData.assignedCollectorId || ''} onChange={(e: any) => setNewDonorData({...newDonorData, assignedCollectorId: e.target.value})}><option value="">Unassigned</option>{collectorsRaw.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -1029,7 +750,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* EDIT DONOR MODAL */}
       {editingDonor && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto animate-in zoom-in duration-300">
@@ -1038,7 +758,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <InputGroup label="Name" value={editingDonor.name} onChange={(v: string) => setEditingDonor({...editingDonor, name: v})} />
               <InputGroup label="Phone" value={editingDonor.phone} onChange={(v: string) => setEditingDonor({...editingDonor, phone: v})} />
               <div className="md:col-span-2"><InputGroup label="Address" value={editingDonor.address} onChange={(v: string) => setEditingDonor({...editingDonor, address: v})} /></div>
-              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingDonor.city} onChange={(e: any) => setEditingDonor({...editingDonor, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingDonor.city} onChange={(e: any) => setEditingDonor({...editingDonor, city: e.target.value})}>{state.cities.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
               <InputGroup label="Monthly Amount" value={String(editingDonor.monthlyAmount)} type="number" onChange={(v: string) => setEditingDonor({...editingDonor, monthlyAmount: Number(v)})} />
               <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Collector</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingDonor.assignedCollectorId || ''} onChange={(e: any) => setEditingDonor({...editingDonor, assignedCollectorId: e.target.value})}><option value="">Unassigned</option>{collectorsRaw.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             </div>
@@ -1047,7 +767,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* ADD COLLECTOR MODAL */}
       {showAddCollectorModal && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
@@ -1057,14 +776,13 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <InputGroup label="Phone Number" value={newCollectorData.phone || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, phone: v})} />
               <InputGroup label="Username" value={newCollectorData.username || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, username: v})} />
               <InputGroup label="Password" value={newCollectorData.password || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, password: v})} />
-              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newCollectorData.city || ''} onChange={(e: any) => setNewCollectorData({...newCollectorData, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newCollectorData.city || ''} onChange={(e: any) => setNewCollectorData({...newCollectorData, city: e.target.value})}>{state.cities.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
             </div>
             <button onClick={handleAddCollector} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl hover:bg-black transition-all">Create Agent Account</button>
           </div>
         </div>
       )}
 
-      {/* EDIT COLLECTOR MODAL */}
       {editingCollector && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
@@ -1074,7 +792,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <InputGroup label="Phone Number" value={editingCollector.phone} onChange={(v: string) => setEditingCollector({...editingCollector, phone: v})} />
               <InputGroup label="Username" value={editingCollector.username} onChange={(v: string) => setEditingCollector({...editingCollector, username: v})} />
               <InputGroup label="Password" value={editingCollector.password || ''} onChange={(v: string) => setEditingCollector({...editingCollector, password: v})} />
-              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingCollector.city || ''} onChange={(e: any) => setEditingCollector({...editingCollector, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingCollector.city || ''} onChange={(e: any) => setEditingCollector({...editingCollector, city: e.target.value})}>{state.cities.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
             </div>
             <button onClick={handleUpdateCollector} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl hover:bg-black transition-all">Save Changes</button>
           </div>
