@@ -67,7 +67,15 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const [editedData, setEditedData] = useState<any | null>(null);
 
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
+  const [newDonorData, setNewDonorData] = useState<Partial<Donor>>({
+    name: '', phone: '', address: '', city: state.cities[0], monthlyAmount: 1000, referredBy: 'Self', assignedCollectorId: null
+  });
+  
   const [editingCollector, setEditingCollector] = useState<User | null>(null);
+  const [newCollectorData, setNewCollectorData] = useState<Partial<User>>({
+    name: '', phone: '', username: '', password: '123', city: state.cities[0], role: UserRole.COLLECTOR
+  });
+
   const [selectedDonorForLedger, setSelectedDonorForLedger] = useState<Donor | null>(null);
   const [showAddDonorModal, setShowAddDonorModal] = useState(false);
   const [showAddCollectorModal, setShowAddCollectorModal] = useState(false);
@@ -379,150 +387,65 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     })
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
 
-  const getReportHtml = () => {
-    const reportData = comprehensiveHistory;
-    const timestamp = new Date().toLocaleString();
-    return `
-      <div id="report-content" class="bg-white p-10 font-sans">
-        <div class="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-8">
-          <div>
-            <h1 class="text-3xl font-black text-slate-900 uppercase tracking-tighter">Esaar Blood Bank</h1>
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">Status Board Report • ${monthName}</p>
-          </div>
-          <div class="text-right">
-            <p class="text-[9px] font-bold text-slate-400 uppercase">Generated On</p>
-            <p class="text-xs font-black text-slate-900">${timestamp}</p>
-            <p class="text-[9px] font-bold text-blue-600 uppercase mt-2">Area: ${selectedCityFilter}</p>
-          </div>
-        </div>
-        <div class="grid grid-cols-4 gap-4 mb-8" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
-          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-            <p class="text-[8px] font-black text-slate-400 uppercase mb-1">Target</p>
-            <p class="text-sm font-black text-slate-900">Rs. ${totalTarget.toLocaleString()}</p>
-          </div>
-          <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-            <p class="text-[8px] font-black text-emerald-600 uppercase mb-1">Collected</p>
-            <p class="text-sm font-black text-emerald-700">Rs. ${historyTotalSum.toLocaleString()}</p>
-          </div>
-          <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-            <p class="text-[8px] font-black text-amber-600 uppercase mb-1">Arrears</p>
-            <p class="text-sm font-black text-amber-700">Rs. ${totalArrearsGlobal.toLocaleString()}</p>
-          </div>
-          <div class="p-4 bg-red-50 rounded-2xl border border-red-100">
-            <p class="text-[8px] font-black text-red-600 uppercase mb-1">Deficit</p>
-            <p class="text-sm font-black text-red-700">Rs. ${totalCurrentDeficit.toLocaleString()}</p>
-          </div>
-        </div>
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="bg-slate-50">
-              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Donor Name</th>
-              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Area</th>
-              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Arrears</th>
-              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Monthly</th>
-              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Status</th>
-              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Method</th>
-              <th class="border p-2 text-right font-black uppercase text-[9px] text-slate-500">Net Due</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${reportData.map(d => {
-              const record = historyRaw.find(h => h.donorId === d.id && h.date.startsWith(activeMonthKey));
-              return `
-                <tr>
-                  <td class="border p-2 font-bold text-slate-900 text-xs">${d.name}</td>
-                  <td class="border p-2 text-slate-500 font-medium text-xs">${d.city}</td>
-                  <td class="border p-2 text-slate-400 font-bold text-xs">Rs. ${d.arrears.toLocaleString()}</td>
-                  <td class="border p-2 text-slate-600 font-bold text-xs">Rs. ${d.monthlyAmount.toLocaleString()}</td>
-                  <td class="border p-2 font-black text-xs ${d.status === 'COLLECTED' ? 'text-emerald-600' : 'text-red-500'}">${d.status}</td>
-                  <td class="border p-2 text-slate-500 text-[10px] font-bold uppercase">${record?.paymentMethod || '---'}</td>
-                  <td class="border p-2 text-right font-black text-slate-900 text-xs">Rs. ${d.totalDue.toLocaleString()}</td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-        <div class="mt-12 pt-8 border-t border-slate-100 flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-          <span>System Verification v3.6.0</span>
-          <span>Signature: ____________________</span>
-        </div>
-      </div>
-    `;
+  const handleAddDonor = () => {
+    if (!newDonorData.name || !newDonorData.phone) return alert("Fill mandatory fields!");
+    const donor: Donor = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newDonorData.name || '',
+      phone: newDonorData.phone || '',
+      address: newDonorData.address || '',
+      city: newDonorData.city || state.cities[0],
+      monthlyAmount: newDonorData.monthlyAmount || 0,
+      referredBy: newDonorData.referredBy || 'Self',
+      assignedCollectorId: newDonorData.assignedCollectorId || null,
+      lastPaymentDate: null,
+      status: 'PENDING',
+      joinDate: new Date().toISOString().split('T')[0]
+    };
+    onUpdateState({ donors: [...donorsListRaw, donor] });
+    setShowAddDonorModal(false);
+    setNewDonorData({ name: '', phone: '', address: '', city: state.cities[0], monthlyAmount: 1000, referredBy: 'Self', assignedCollectorId: null });
   };
 
-  const handlePrintReport = () => {
-    const printWindow = window.open('', '_blank', 'width=1000,height=800');
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Esaar Status Board - ${monthName}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            @media print {
-              .no-print { display: none; }
-              body { background: white; padding: 0; }
-            }
-          </style>
-        </head>
-        <body class="bg-slate-50 p-8">
-          <div class="max-w-4xl mx-auto bg-white p-10 shadow-sm border border-slate-100 rounded-3xl">
-            <div class="no-print flex justify-end gap-3 mb-8">
-              <button onclick="window.print()" class="px-6 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-xs shadow-lg hover:bg-red-700 transition-all">Start Printing</button>
-            </div>
-            ${getReportHtml()}
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  const handleAddCollector = () => {
+    if (!newCollectorData.name || !newCollectorData.username) return alert("Fill mandatory fields!");
+    const agent: User = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newCollectorData.name || '',
+      phone: newCollectorData.phone || '',
+      role: UserRole.COLLECTOR,
+      username: newCollectorData.username || '',
+      password: newCollectorData.password || '123',
+      city: newCollectorData.city || state.cities[0]
+    };
+    onUpdateState({ collectors: [...collectorsRaw, agent] });
+    setShowAddCollectorModal(false);
+    setNewCollectorData({ name: '', phone: '', username: '', password: '123', city: state.cities[0], role: UserRole.COLLECTOR });
   };
 
-  const handleDownloadPDF = async () => {
-    setIsProcessing(true);
-    try {
-      const element = document.createElement('div');
-      element.innerHTML = getReportHtml();
-      document.body.appendChild(element);
-      
-      const opt = {
-        margin: 0.5,
-        filename: `esaar_report_${monthName.replace(/\s/g, '_')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-      };
-      
-      await (window as any).html2pdf().set(opt).from(element).save();
-      document.body.removeChild(element);
-    } catch (err) {
-      console.error("PDF Export failed", err);
-      alert("PDF generation failed. Please try again.");
-    } finally {
-      setIsProcessing(false);
-    }
+  const handleUpdateDonor = () => {
+    if (!editingDonor) return;
+    onUpdateState({ donors: donorsListRaw.map(d => d.id === editingDonor.id ? editingDonor : d) });
+    setEditingDonor(null);
+  };
+
+  const handleUpdateCollector = () => {
+    if (!editingCollector) return;
+    onUpdateState({ collectors: collectorsRaw.map(c => c.id === editingCollector.id ? editingCollector : c) });
+    setEditingCollector(null);
+  };
+
+  const handlePrintReport = () => window.print();
+
+  const handleDownloadPDF = () => {
+    const element = document.querySelector('table');
+    if (!element || !(window as any).html2pdf) return;
+    (window as any).html2pdf().from(element).save(`report_${activeMonthKey}.pdf`);
   };
 
   const handleWhatsAppTextReport = () => {
-    const summary = `📊 *ESAAR STATUS BOARD - ${monthName}*
---------------------------------
-📍 Area: *${selectedCityFilter}*
-💰 Total Target: *Rs. ${totalTarget.toLocaleString()}*
-✅ Collected: *Rs. ${historyTotalSum.toLocaleString()}*
-⚠️ Total Deficit: *Rs. ${totalCurrentDeficit.toLocaleString()}*
-⏳ Total Arrears: *Rs. ${totalArrearsGlobal.toLocaleString()}*
-
-💵 Cash: *Rs. ${cashSum.toLocaleString()}*
-🌐 Online: *Rs. ${onlineSum.toLocaleString()}*
-
-👥 Paid Donors: *${historyList.length}*
-❌ Pending Donors: *${Math.max(0, cityFiltered.length - historyList.length)}*
---------------------------------
-_Generated via Esaar Blood Bank Cloud_`;
-
-    const url = `https://wa.me/?text=${encodeURIComponent(summary)}`;
-    window.open(url, '_blank');
+    const summary = `*Esaar Blood Bank Report - ${monthName}*\n\nTarget: Rs. ${totalTarget.toLocaleString()}\nCollected: Rs. ${historyTotalSum.toLocaleString()}\nDeficit: Rs. ${totalCurrentDeficit.toLocaleString()}\n\nPaid Donors: ${historyList.length}/${cityFiltered.length}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(summary)}`, '_blank');
   };
 
   const roadmapMonths = Array.from({ length: 12 }, (_, i) => {
@@ -534,6 +457,29 @@ _Generated via Esaar Blood Bank Cloud_`;
 
   const createdRoadmap = roadmapMonths.filter(m => m.key <= activeMonthKey);
   const upcomingRoadmap = roadmapMonths.filter(m => m.key > activeMonthKey);
+
+  const InputGroup = ({ label, value, onChange, type = "text" }: any) => (
+    <div className="space-y-2 flex-1">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{label}</label>
+      <input 
+        type={type} 
+        className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-100 transition-all" 
+        value={value} 
+        onChange={e => onChange(e.target.value)} 
+      />
+    </div>
+  );
+
+  const StatCard = ({ label, value, icon, color, subStats }: any) => (
+    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-full flex flex-col justify-center hover:shadow-lg transition-all relative group">
+      <div className={`p-4 rounded-[20px] bg-slate-50 inline-block mb-6 ${color} w-fit transition-transform group-hover:scale-110`}>{icon}</div>
+      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+      <div className="flex justify-between items-center gap-4">
+        <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
+        {subStats && <div className="text-right">{subStats}</div>}
+      </div>
+    </div>
+  );
 
   if (showAreaManagement) {
     return (
@@ -866,13 +812,10 @@ _Generated via Esaar Blood Bank Cloud_`;
                       <td className="px-10 py-6">
                         {row.status === 'COLLECTED' && record ? (
                           <div className="flex flex-col gap-1.5 items-start">
-                            {/* Line 1: Amount Received */}
                             <span className="text-[11px] font-black text-slate-900 tracking-tight">Rs. {record.amount.toLocaleString()}</span>
-                            {/* Line 2: COLLECTED Status Badge */}
                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest">
                               COLLECTED
                             </div>
-                            {/* Line 3: Exact Date and Time */}
                             <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 leading-none opacity-90">
                               {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                             </div>
@@ -904,19 +847,68 @@ _Generated via Esaar Blood Bank Cloud_`;
                 <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Reset all collections to Jan 2026</p>
                 <button onClick={handleMasterReset} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Reset System</button>
               </div>
-
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4"><Download className="w-8 h-8 text-blue-600" /></div>
                 <h3 className="text-lg font-black mb-2 uppercase">Backup Data</h3>
-                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Download everything as JSON file</p>
+                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Download JSON file</p>
                 <button onClick={onBackupClick} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Export Backup</button>
               </div>
-
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
                 <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4"><Upload className="w-8 h-8 text-emerald-600" /></div>
                 <h3 className="text-lg font-black mb-2 uppercase">Restore Data</h3>
-                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Upload JSON file to restore</p>
+                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Upload JSON file</p>
                 <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Import Backup</button>
+              </div>
+           </div>
+
+           {/* CALENDAR ROADMAP BOX */}
+           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                    <div className="p-3 bg-red-50 rounded-2xl text-red-600"><CalendarRange className="w-6 h-6" /></div>
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight">Calendar Roadmap</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yearly Cycle Overview</p>
+                    </div>
+                 </div>
+                 <div className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-sm tracking-widest">
+                    {yearNum}
+                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                 <div className="p-8 border-r border-slate-100 bg-slate-50/30">
+                    <h4 className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-6 flex items-center gap-2">
+                       <CheckCircle2 className="w-3 h-3" /> Created Lists
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                       {createdRoadmap.map(m => (
+                          <div key={m.key} className={`flex items-center justify-between p-4 rounded-2xl border ${m.key === activeMonthKey ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg scale-105' : 'bg-white text-slate-600 border-slate-100'}`}>
+                             <span className="font-black text-[11px] uppercase">{m.name}</span>
+                             {m.key === activeMonthKey ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+                 <div className="p-8 bg-white">
+                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6 flex items-center gap-2">
+                       <Clock className="w-3 h-3" /> Upcoming Lists
+                    </h4>
+                    {upcomingRoadmap.length > 0 ? (
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {upcomingRoadmap.map(m => (
+                             <div key={m.key} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 text-slate-400">
+                                <span className="font-black text-[11px] uppercase">{m.name}</span>
+                                <Calendar className="w-3 h-3 opacity-30" />
+                             </div>
+                          ))}
+                       </div>
+                    ) : (
+                       <div className="py-10 text-center">
+                          <AlertCircle className="w-8 h-8 text-slate-100 mx-auto mb-2" />
+                          <p className="text-[10px] font-black text-slate-300 uppercase">Year cycle complete</p>
+                       </div>
+                    )}
+                 </div>
               </div>
            </div>
 
@@ -950,42 +942,146 @@ _Generated via Esaar Blood Bank Cloud_`;
         </div>
       )}
 
+      {/* LEDGER MODAL */}
+      {selectedDonorForLedger && (
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-3xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tight">{selectedDonorForLedger.name}</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{selectedDonorForLedger.phone} • {selectedDonorForLedger.city}</p>
+              </div>
+              <button onClick={() => setSelectedDonorForLedger(null)} className="p-3 bg-white rounded-2xl text-slate-300 hover:text-red-500 shadow-sm transition-all"><X className="w-6 h-6"/></button>
+            </div>
+            <div className="flex-1 overflow-auto p-8 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="p-6 bg-slate-50 rounded-3xl text-center">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Joined</p>
+                   <p className="text-lg font-black text-slate-900">{formatDateToDMY(selectedDonorForLedger.joinDate)}</p>
+                </div>
+                <div className="p-6 bg-emerald-50 rounded-3xl text-center">
+                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Paid</p>
+                   <p className="text-lg font-black text-emerald-700">Rs. {historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).reduce((s, h) => s + h.amount, 0).toLocaleString()}</p>
+                </div>
+                <div className="p-6 bg-blue-50 rounded-3xl text-center">
+                   <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Monthly</p>
+                   <p className="text-lg font-black text-blue-700">Rs. {selectedDonorForLedger.monthlyAmount.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr className="text-slate-400 font-black uppercase text-[9px] tracking-widest">
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Amount</th>
+                      <th className="px-6 py-4">Method</th>
+                      <th className="px-6 py-4">Collector</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).sort((a,b) => b.date.localeCompare(a.date)).map(h => (
+                      <tr key={h.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 font-black text-slate-700">{formatDateToDMY(h.date)}</td>
+                        <td className="px-6 py-4 font-black text-emerald-600">Rs. {h.amount.toLocaleString()}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${h.paymentMethod === 'ONLINE' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {h.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-slate-500 uppercase">{h.collectorName}</td>
+                      </tr>
+                    ))}
+                    {historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-300 font-bold uppercase tracking-widest text-[10px]">No payment records found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="p-8 border-t border-slate-100 bg-slate-50/30">
+               <button onClick={() => window.print()} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
+                  <Printer className="w-4 h-4" /> Print Ledger
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD DONOR MODAL */}
+      {showAddDonorModal && (
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Add New Donor</h3><button onClick={() => setShowAddDonorModal(false)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <InputGroup label="Name" value={newDonorData.name} onChange={(v: string) => setNewDonorData({...newDonorData, name: v})} />
+              <InputGroup label="Phone" value={newDonorData.phone} onChange={(v: string) => setNewDonorData({...newDonorData, phone: v})} />
+              <div className="md:col-span-2"><InputGroup label="Address" value={newDonorData.address} onChange={(v: string) => setNewDonorData({...newDonorData, address: v})} /></div>
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newDonorData.city} onChange={(e: any) => setNewDonorData({...newDonorData, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <InputGroup label="Monthly Amount" value={String(newDonorData.monthlyAmount)} type="number" onChange={(v: string) => setNewDonorData({...newDonorData, monthlyAmount: Number(v)})} />
+              <InputGroup label="Referred By" value={newDonorData.referredBy} onChange={(v: string) => setNewDonorData({...newDonorData, referredBy: v})} />
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Assign Agent</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newDonorData.assignedCollectorId || ''} onChange={(e: any) => setNewDonorData({...newDonorData, assignedCollectorId: e.target.value})}><option value="">Unassigned</option>{collectorsRaw.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            </div>
+            <button onClick={handleAddDonor} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase shadow-lg shadow-red-100 hover:bg-red-700 transition-all">Create Donor Profile</button>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT DONOR MODAL */}
       {editingDonor && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase">Edit Donor</h3><button onClick={() => setEditingDonor(null)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <InputGroup label="Name" value={editingDonor.name} onChange={v => setEditingDonor({...editingDonor, name: v})} />
-              <InputGroup label="Phone" value={editingDonor.phone} onChange={v => setEditingDonor({...editingDonor, phone: v})} />
-              <div className="md:col-span-2"><InputGroup label="Address" value={editingDonor.address} onChange={v => setEditingDonor({...editingDonor, address: v})} /></div>
-              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold" value={editingDonor.city} onChange={e => setEditingDonor({...editingDonor, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-              <InputGroup label="Monthly" value={editingDonor.monthlyAmount.toString()} type="number" onChange={v => setEditingDonor({...editingDonor, monthlyAmount: Number(v)})} />
-              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Collector</label><select className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold" value={editingDonor.assignedCollectorId || ''} onChange={e => setEditingDonor({...editingDonor, assignedCollectorId: e.target.value})}><option value="">Unassigned</option>{collectorsRaw.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Edit Donor</h3><button onClick={() => setEditingDonor(null)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <InputGroup label="Name" value={editingDonor.name} onChange={(v: string) => setEditingDonor({...editingDonor, name: v})} />
+              <InputGroup label="Phone" value={editingDonor.phone} onChange={(v: string) => setEditingDonor({...editingDonor, phone: v})} />
+              <div className="md:col-span-2"><InputGroup label="Address" value={editingDonor.address} onChange={(v: string) => setEditingDonor({...editingDonor, address: v})} /></div>
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingDonor.city} onChange={(e: any) => setEditingDonor({...editingDonor, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <InputGroup label="Monthly Amount" value={String(editingDonor.monthlyAmount)} type="number" onChange={(v: string) => setEditingDonor({...editingDonor, monthlyAmount: Number(v)})} />
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Collector</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingDonor.assignedCollectorId || ''} onChange={(e: any) => setEditingDonor({...editingDonor, assignedCollectorId: e.target.value})}><option value="">Unassigned</option>{collectorsRaw.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             </div>
-            <button onClick={() => { onUpdateState({ donors: donorsListRaw.map(d => d.id === editingDonor.id ? editingDonor : d) }); setEditingDonor(null); }} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase shadow-lg">Save Changes</button>
+            <button onClick={handleUpdateDonor} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase shadow-lg shadow-red-100 hover:bg-red-700 transition-all">Update Information</button>
+          </div>
+        </div>
+      )}
+
+      {/* ADD COLLECTOR MODAL */}
+      {showAddCollectorModal && (
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Add New Agent</h3><button onClick={() => setShowAddCollectorModal(false)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
+            <div className="space-y-5 mb-8">
+              <InputGroup label="Full Name" value={newCollectorData.name || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, name: v})} />
+              <InputGroup label="Phone Number" value={newCollectorData.phone || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, phone: v})} />
+              <InputGroup label="Username" value={newCollectorData.username || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, username: v})} />
+              <InputGroup label="Password" value={newCollectorData.password || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, password: v})} />
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={newCollectorData.city || ''} onChange={(e: any) => setNewCollectorData({...newCollectorData, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+            </div>
+            <button onClick={handleAddCollector} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl hover:bg-black transition-all">Create Agent Account</button>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT COLLECTOR MODAL */}
+      {editingCollector && (
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Edit Agent</h3><button onClick={() => setEditingCollector(null)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
+            <div className="space-y-5 mb-8">
+              <InputGroup label="Full Name" value={editingCollector.name} onChange={(v: string) => setEditingCollector({...editingCollector, name: v})} />
+              <InputGroup label="Phone Number" value={editingCollector.phone} onChange={(v: string) => setEditingCollector({...editingCollector, phone: v})} />
+              <InputGroup label="Username" value={editingCollector.username} onChange={(v: string) => setEditingCollector({...editingCollector, username: v})} />
+              <InputGroup label="Password" value={editingCollector.password || ''} onChange={(v: string) => setEditingCollector({...editingCollector, password: v})} />
+              <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingCollector.city || ''} onChange={(e: any) => setEditingCollector({...editingCollector, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+            </div>
+            <button onClick={handleUpdateCollector} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl hover:bg-black transition-all">Save Changes</button>
           </div>
         </div>
       )}
     </div>
   );
 };
-
-const StatCard = ({ label, value, icon, color, subStats }: any) => (
-  <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-full flex flex-col justify-center hover:shadow-lg transition-all relative group">
-    <div className={`p-4 rounded-[20px] bg-slate-50 inline-block mb-6 ${color} w-fit transition-transform group-hover:scale-110`}>{icon}</div>
-    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
-    <div className="flex justify-between items-center gap-4">
-      <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
-      {subStats && <div className="text-right">{subStats}</div>}
-    </div>
-  </div>
-);
-
-const InputGroup = ({ label, value, onChange, type = "text" }: any) => (
-  <div className="space-y-2 flex-1">
-    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{label}</label>
-    <input type={type} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-100 transition-all" value={value} onChange={e => onChange(e.target.value)} />
-  </div>
-);
 
 export default AdminPanel;

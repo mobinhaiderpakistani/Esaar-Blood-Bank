@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppState, Donor, User, DonationRecord } from '../types';
 import { 
@@ -195,36 +196,23 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
             </div>
           ) : (
             pendingDonors.map(donor => (
-              <div key={donor.id} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-50 flex flex-col gap-5 hover:shadow-md transition-all">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-black text-slate-900 tracking-tight text-lg leading-tight">{donor.name}</span>
-                      <div className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black uppercase">{donor.city}</div>
-                    </div>
-                    {/* PHONE NUMBER - Prominently Displayed */}
-                    <div className="flex items-center gap-2 text-sm text-red-600 font-black">
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>{donor.phone}</span>
-                    </div>
+              <div key={donor.id} onClick={() => setPendingSelection(donor)} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer hover:shadow-md">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-black text-slate-900 tracking-tight text-base">{donor.name}</span>
+                    <div className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black uppercase">{donor.city}</div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receivable</p>
-                    <p className="text-xl font-black text-slate-900 tracking-tighter">Rs. {donor.totalBalance.toLocaleString()}</p>
+                  <div className="flex items-center gap-2 text-sm text-slate-900 font-black">
+                    <Phone className="w-3.5 h-3.5 text-red-600" />
+                    <span>{donor.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-wider">
+                    <MapPin className="w-3 h-3" /> {donor.city}
                   </div>
                 </div>
-
-                {/* ACTION BUTTONS - Restored */}
-                <div className="grid grid-cols-2 gap-3">
-                  <a href={`tel:${donor.phone}`} className="flex items-center justify-center gap-2 py-4 bg-slate-50 rounded-2xl text-slate-600 hover:bg-slate-900 hover:text-white transition-all font-black text-[10px] uppercase tracking-widest shadow-sm">
-                    <Phone className="w-4 h-4" /> Call Donor
-                  </a>
-                  <button 
-                    onClick={() => setPendingSelection(donor)}
-                    className="flex items-center justify-center gap-2 py-4 bg-red-600 rounded-2xl text-white hover:bg-red-700 transition-all font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-100"
-                  >
-                    <DollarSign className="w-4 h-4" /> Collect
-                  </button>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receivable</p>
+                  <p className="text-lg font-black text-slate-900 tracking-tighter">Rs. {donor.totalBalance.toLocaleString()}</p>
                 </div>
               </div>
             ))
@@ -248,12 +236,8 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
                   </div>
                   <div>
                     <h4 className="font-black text-slate-900 text-sm leading-tight">{record.donorName}</h4>
-                    {/* DATE AND TIME - Correctly Stacked Under Name */}
                     <p className="text-[10px] text-slate-400 font-black uppercase mt-1">
-                      {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                    </p>
-                    <p className="text-[9px] text-blue-600 font-black uppercase tracking-widest mt-0.5">
-                      MODE: {record.paymentMethod}
+                      {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })} • {record.paymentMethod}
                     </p>
                   </div>
                 </div>
@@ -266,7 +250,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
         </div>
       )}
 
-      {/* COLLECTION CONFIRMATION MODAL */}
+      {/* COLLECTION MODAL */}
       {pendingSelection && (
         <div className="fixed inset-0 z-[5000] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 animate-in slide-in-from-bottom duration-300">
@@ -281,20 +265,21 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
             </div>
 
             <div className="bg-slate-50 p-6 rounded-3xl mb-6">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Confirm Amount</p>
-              <p className="text-3xl font-black text-slate-900 tracking-tighter">Rs. {pendingSelection.totalBalance.toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Receivable</p>
+              {/* Fix: Use getDonorBalance(pendingSelection) instead of accessing non-existent totalBalance property */}
+              <p className="text-3xl font-black text-slate-900 tracking-tighter">Rs. {getDonorBalance(pendingSelection).toLocaleString()}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-8">
               <button 
-                onClick={() => setSelectedPaymentMethod('CASH')}
+                onClick={(e) => { e.stopPropagation(); setSelectedPaymentMethod('CASH'); }}
                 className={`py-4 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all ${selectedPaymentMethod === 'CASH' ? 'border-red-600 bg-red-50 text-red-600' : 'border-slate-100 bg-white text-slate-400'}`}
               >
                 <Wallet className="w-5 h-5" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Cash</span>
               </button>
               <button 
-                onClick={() => setSelectedPaymentMethod('ONLINE')}
+                onClick={(e) => { e.stopPropagation(); setSelectedPaymentMethod('ONLINE'); }}
                 className={`py-4 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all ${selectedPaymentMethod === 'ONLINE' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-100 bg-white text-slate-400'}`}
               >
                 <Globe className="w-5 h-5" />
@@ -302,7 +287,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
               </button>
             </div>
 
-            <button onClick={handleCollect} className="w-full py-5 bg-red-600 text-white rounded-[22px] font-black uppercase tracking-widest shadow-xl shadow-red-100 active:scale-95 transition-all">
+            <button onClick={(e) => { e.stopPropagation(); handleCollect(); }} className="w-full py-5 bg-red-600 text-white rounded-[22px] font-black uppercase tracking-widest shadow-xl shadow-red-100 active:scale-95 transition-all">
               Mark as Collected
             </button>
           </div>
@@ -338,7 +323,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
         </div>
       )}
 
-      {/* SECURITY SETTINGS MODAL */}
+      {/* SETTINGS MODAL */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-8">
@@ -365,7 +350,7 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Confirm Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input 
                     type={showPass ? "text" : "password"} 
                     className="w-full pl-11 pr-11 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-200 transition-all" 
