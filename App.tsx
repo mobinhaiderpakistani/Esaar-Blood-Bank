@@ -11,7 +11,7 @@ const firebase = (window as any).firebase;
 
 const firebaseConfig = {
   apiKey: "AIzaSyD4ITcoh4mhq_PuzMev4xn9Mx0vcF-op38",
-  authDomain: "esaar-blood-bank.firebaseapp.com",
+  authDomain: "esaar-blood-bank.appspot.com",
   databaseURL: "https://esaar-blood-bank-default-rtdb.firebaseio.com",
   projectId: "esaar-blood-bank",
   storageBucket: "esaar-blood-bank.appspot.com",
@@ -63,14 +63,12 @@ const App: React.FC = () => {
           collectors: ensureArray(cloudData.collectors),
           donationHistory: ensureArray(cloudData.donationHistory),
           cities: ensureArray(cloudData.cities),
-          // FORCE currentMonthKey if it's missing or corrupted in cloud
           currentMonthKey: cloudData.currentMonthKey || "2026-01",
           adminPassword: cloudData.adminPassword || "admin",
           superAdminPassword: cloudData.superAdminPassword || "superadmin",
           currentUser: prev.currentUser 
         }));
       } else {
-        // Initial setup for fresh database
         dbRef.set({
           donors: INITIAL_DONORS,
           collectors: INITIAL_COLLECTORS,
@@ -92,7 +90,6 @@ const App: React.FC = () => {
     setState(prev => {
       const updatedFullState = { ...prev, ...newState };
       
-      // Explicitly update individual fields to ensure persistence
       firebase.database().ref('esaar_state').update({
         donors: updatedFullState.donors,
         collectors: updatedFullState.collectors,
@@ -106,6 +103,66 @@ const App: React.FC = () => {
       return updatedFullState;
     });
   }, []);
+
+  const handleExport = async () => {
+    const data = {
+      donors: state.donors,
+      collectors: state.collectors,
+      donationHistory: state.donationHistory,
+      cities: state.cities,
+      currentMonthKey: state.currentMonthKey
+    };
+    const jsonString = JSON.stringify(data, null, 2);
+    
+    const now = new Date();
+    const datePart = now.toISOString().split('T')[0];
+    const timePart = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+    const fileName = `esaar_backup_${datePart}_${timePart}.json`;
+
+    // 1. Mobile "Save As" (Via Share Sheet)
+    if (navigator.share && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      try {
+        const file = new File([jsonString], fileName, { type: 'application/json' });
+        await navigator.share({
+          files: [file],
+          title: 'Esaar Database Backup',
+          text: 'Save your database backup file'
+        });
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+
+    // 2. Desktop "Save As" (Via File Picker)
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: 'JSON Backup',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+
+    // 3. Fallback: Direct Download
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    alert("Backup saved to your Downloads folder.");
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,8 +190,8 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setState(prev => ({ ...prev, currentUser: null }));
-    setUsernameInput('superadmin');
-    setPasswordInput('superadmin');
+    setUsernameInput('');
+    setPasswordInput('');
   };
 
   const changeAdminPassword = () => {
@@ -184,11 +241,12 @@ const App: React.FC = () => {
       <DashboardHeader 
         user={state.currentUser} 
         onLogout={handleLogout} 
-        onProfileClick={() => isAdminPanel && setIsAdminPassModalOpen(true)} 
+        onProfileClick={() => isAdminPanel && setIsAdminPassModalOpen(true)}
+        onBackupClick={isAdminPanel ? handleExport : undefined}
       />
       <main className="max-w-7xl mx-auto">
         {isAdminPanel ? 
-          <AdminPanel state={state} onUpdateState={updateGlobalState} /> : 
+          <AdminPanel state={state} onUpdateState={updateGlobalState} onBackupClick={handleExport} /> : 
           <CollectorPanel user={state.currentUser} state={state} onUpdateState={updateGlobalState} activeTab={collectorTab} setActiveTab={setCollectorTab} />
         }
       </main>

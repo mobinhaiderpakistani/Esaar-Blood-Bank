@@ -31,8 +31,10 @@ import {
   ArrowLeft,
   Info,
   CalendarRange,
-  // Added Clock import to fix the error
-  Clock
+  Clock,
+  CloudDownload,
+  Printer,
+  FileDown
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -42,20 +44,27 @@ import {
 interface Props {
   state: AppState;
   onUpdateState: (newState: Partial<AppState>) => void;
+  onBackupClick?: () => void;
 }
 
 const COLORS = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
-const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
+// Custom WhatsApp Icon SVG
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+  </svg>
+);
+
+const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'donors' | 'collectors' | 'history' | 'maintenance'>('dashboard');
+  const [selectedTable, setSelectedTable] = useState<string>('donors');
   const [showAreaManagement, setShowAreaManagement] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCityFilter, setSelectedCityFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COLLECTED' | 'PENDING'>('ALL');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Data Explorer / Editor State
-  const [selectedTable, setSelectedTable] = useState<string>('donors');
   const [editingRecord, setEditingRecord] = useState<any | null>(null);
   const [editedData, setEditedData] = useState<any | null>(null);
 
@@ -158,28 +167,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       onUpdateState({ donationHistory: [], currentMonthKey: SYSTEM_START_DATE_STR });
       setTimeout(() => { setIsProcessing(false); setActiveTab('dashboard'); }, 800);
     }
-  };
-
-  const handleExport = () => {
-    const data = {
-      donors: state.donors,
-      collectors: state.collectors,
-      donationHistory: state.donationHistory,
-      cities: state.cities,
-      currentMonthKey: state.currentMonthKey
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    
-    const now = new Date();
-    const datePart = now.toISOString().split('T')[0];
-    const timePart = now.toTimeString().split(' ')[0].replace(/:/g, '-');
-    
-    link.download = `esaar_backup_${datePart}_${timePart}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,6 +381,149 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     })
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
 
+  const getReportHtml = () => {
+    const reportData = comprehensiveHistory;
+    const timestamp = new Date().toLocaleString();
+    return `
+      <div id="report-content" class="bg-white p-10 font-sans">
+        <div class="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-8">
+          <div>
+            <h1 class="text-3xl font-black text-slate-900 uppercase tracking-tighter">Esaar Blood Bank</h1>
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">Status Board Report • ${monthName}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-[9px] font-bold text-slate-400 uppercase">Generated On</p>
+            <p class="text-xs font-black text-slate-900">${timestamp}</p>
+            <p class="text-[9px] font-bold text-blue-600 uppercase mt-2">Area: ${selectedCityFilter}</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-4 gap-4 mb-8" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+            <p class="text-[8px] font-black text-slate-400 uppercase mb-1">Target</p>
+            <p class="text-sm font-black text-slate-900">Rs. ${totalTarget.toLocaleString()}</p>
+          </div>
+          <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+            <p class="text-[8px] font-black text-emerald-600 uppercase mb-1">Collected</p>
+            <p class="text-sm font-black text-emerald-700">Rs. ${historyTotalSum.toLocaleString()}</p>
+          </div>
+          <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+            <p class="text-[8px] font-black text-amber-600 uppercase mb-1">Arrears</p>
+            <p class="text-sm font-black text-amber-700">Rs. ${totalArrearsGlobal.toLocaleString()}</p>
+          </div>
+          <div class="p-4 bg-red-50 rounded-2xl border border-red-100">
+            <p class="text-[8px] font-black text-red-600 uppercase mb-1">Deficit</p>
+            <p class="text-sm font-black text-red-700">Rs. ${totalCurrentDeficit.toLocaleString()}</p>
+          </div>
+        </div>
+        <table class="w-full border-collapse">
+          <thead>
+            <tr class="bg-slate-50">
+              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Donor Name</th>
+              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Area</th>
+              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Arrears</th>
+              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Monthly</th>
+              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Status</th>
+              <th class="border p-2 text-left font-black uppercase text-[9px] text-slate-500">Method</th>
+              <th class="border p-2 text-right font-black uppercase text-[9px] text-slate-500">Net Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${reportData.map(d => {
+              const record = historyRaw.find(h => h.donorId === d.id && h.date.startsWith(activeMonthKey));
+              return `
+                <tr>
+                  <td class="border p-2 font-bold text-slate-900 text-xs">${d.name}</td>
+                  <td class="border p-2 text-slate-500 font-medium text-xs">${d.city}</td>
+                  <td class="border p-2 text-slate-400 font-bold text-xs">Rs. ${d.arrears.toLocaleString()}</td>
+                  <td class="border p-2 text-slate-600 font-bold text-xs">Rs. ${d.monthlyAmount.toLocaleString()}</td>
+                  <td class="border p-2 font-black text-xs ${d.status === 'COLLECTED' ? 'text-emerald-600' : 'text-red-500'}">${d.status}</td>
+                  <td class="border p-2 text-slate-500 text-[10px] font-bold uppercase">${record?.paymentMethod || '---'}</td>
+                  <td class="border p-2 text-right font-black text-slate-900 text-xs">Rs. ${d.totalDue.toLocaleString()}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+        <div class="mt-12 pt-8 border-t border-slate-100 flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+          <span>System Verification v3.6.0</span>
+          <span>Signature: ____________________</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const handlePrintReport = () => {
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Esaar Status Board - ${monthName}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @media print {
+              .no-print { display: none; }
+              body { background: white; padding: 0; }
+            }
+          </style>
+        </head>
+        <body class="bg-slate-50 p-8">
+          <div class="max-w-4xl mx-auto bg-white p-10 shadow-sm border border-slate-100 rounded-3xl">
+            <div class="no-print flex justify-end gap-3 mb-8">
+              <button onclick="window.print()" class="px-6 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-xs shadow-lg hover:bg-red-700 transition-all">Start Printing</button>
+            </div>
+            ${getReportHtml()}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsProcessing(true);
+    try {
+      const element = document.createElement('div');
+      element.innerHTML = getReportHtml();
+      document.body.appendChild(element);
+      
+      const opt = {
+        margin: 0.5,
+        filename: `esaar_report_${monthName.replace(/\s/g, '_')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      
+      await (window as any).html2pdf().set(opt).from(element).save();
+      document.body.removeChild(element);
+    } catch (err) {
+      console.error("PDF Export failed", err);
+      alert("PDF generation failed. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleWhatsAppTextReport = () => {
+    const summary = `📊 *ESAAR STATUS BOARD - ${monthName}*
+--------------------------------
+📍 Area: *${selectedCityFilter}*
+💰 Total Target: *Rs. ${totalTarget.toLocaleString()}*
+✅ Collected: *Rs. ${historyTotalSum.toLocaleString()}*
+⚠️ Total Deficit: *Rs. ${totalCurrentDeficit.toLocaleString()}*
+⏳ Total Arrears: *Rs. ${totalArrearsGlobal.toLocaleString()}*
+
+👥 Paid Donors: *${historyList.length}*
+❌ Pending Donors: *${Math.max(0, cityFiltered.length - historyList.length)}*
+--------------------------------
+_Generated via Esaar Blood Bank Cloud_`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(summary)}`;
+    window.open(url, '_blank');
+  };
+
   const roadmapMonths = Array.from({ length: 12 }, (_, i) => {
     const m = i + 1;
     const key = `${yearNum}-${String(m).padStart(2, '0')}`;
@@ -428,17 +558,34 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     <div className="p-4 md:p-8 space-y-6 min-h-screen pb-24 relative">
       <input type="file" ref={fileInputRef} onChange={handleImport} accept=".json" className="hidden" />
       {isProcessing && (
-        <div className="fixed inset-0 z-[5000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center text-white">
+        <div className="fixed inset-0 z-[5000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center text-white text-center px-6">
           <Loader2 className="w-16 h-16 animate-spin text-red-500 mb-6" />
-          <h2 className="text-2xl font-black uppercase tracking-[0.2em]">Processing...</h2>
+          <h2 className="text-2xl font-black uppercase tracking-[0.2em] mb-2">Generating Report...</h2>
+          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Please wait a moment while we prepare your document.</p>
         </div>
       )}
 
       <div className="flex items-center gap-2 overflow-x-auto py-2 scrollbar-hide no-print">
-        <button onClick={() => setShowAreaManagement(true)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm"><Settings className="w-5 h-5" /></button>
-        <button onClick={() => setSelectedCityFilter('All')} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedCityFilter === 'All' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500'}`}>All Areas</button>
+        <div className="flex items-center gap-2 mr-2">
+          <button onClick={() => setShowAreaManagement(true)} title="Area Management" className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+            <Settings className="w-5 h-5" />
+          </button>
+          {onBackupClick && (
+            <button 
+              onClick={onBackupClick} 
+              className="flex items-center gap-2 px-5 py-3 bg-blue-50 border border-blue-100 rounded-2xl text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm whitespace-nowrap"
+            >
+              <CloudDownload className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Backup Database</span>
+            </button>
+          )}
+        </div>
+        
+        <div className="h-10 w-[1px] bg-slate-200 mx-2" />
+
+        <button onClick={() => setSelectedCityFilter('All')} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedCityFilter === 'All' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500'}`}>All Areas</button>
         {citiesRaw.map(c => (
-          <button key={c} onClick={() => setSelectedCityFilter(c)} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedCityFilter === c ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-slate-500'}`}>{c}</button>
+          <button key={c} onClick={() => setSelectedCityFilter(c)} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedCityFilter === c ? 'bg-red-600 text-white shadow-lg' : 'bg-white text-slate-500'}`}>{c}</button>
         ))}
       </div>
 
@@ -461,7 +608,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
            <button onClick={handlePrevMonth} disabled={isBaselineMonth} className={`p-4 rounded-2xl font-black border transition-all ${isBaselineMonth ? 'bg-slate-50 text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white'}`}>
               <ChevronLeft className="w-4 h-4" />
            </button>
-           <button onClick={handleNextMonth} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2">
+           <button onClick={handleNextMonth} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2 whitespace-nowrap">
               <CheckCircle2 className="w-4 h-4" />
               {monthName} Active
            </button>
@@ -568,7 +715,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input type="text" placeholder="Search..." className="pl-11 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
-              <button onClick={() => setShowAddDonorModal(true)} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg"><Plus className="w-4 h-4" /> Add Donor</button>
+              <button onClick={() => setShowAddDonorModal(true)} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg whitespace-nowrap"><Plus className="w-4 h-4" /> Add Donor</button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -630,7 +777,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
         <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
           <div className="p-8 border-b border-slate-100 flex justify-between items-center">
              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Agents</h2>
-             <button onClick={() => setShowAddCollectorModal(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg"><UserPlus className="w-4 h-4" /> Add Agent</button>
+             <button onClick={() => setShowAddCollectorModal(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg whitespace-nowrap"><UserPlus className="w-4 h-4" /> Add Agent</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -671,7 +818,32 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       {activeTab === 'history' && (
         <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
           <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight flex-1">Status Board ({monthName})</h2>
+            <div className="flex items-center gap-4">
+               <h2 className="text-2xl font-black text-slate-900 tracking-tight">Status Board ({monthName})</h2>
+               <div className="flex items-center gap-2">
+                 <button 
+                  onClick={handlePrintReport}
+                  title="Print Report"
+                  className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg"
+                 >
+                   <Printer className="w-4 h-4" />
+                 </button>
+                 <button 
+                  onClick={handleDownloadPDF}
+                  title="Export to PDF File"
+                  className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg"
+                 >
+                   <FileDown className="w-4 h-4" />
+                 </button>
+                 <button 
+                  onClick={handleWhatsAppTextReport}
+                  title="WhatsApp Text Report"
+                  className="p-3 bg-emerald-50 text-emerald-600 hover:bg-[#25D366] hover:text-white rounded-2xl transition-all border border-emerald-100 hover:shadow-lg"
+                 >
+                   <WhatsAppIcon className="w-4 h-4" />
+                 </button>
+               </div>
+            </div>
             <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
               <button onClick={() => setStatusFilter('ALL')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'ALL' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400'}`}>All</button>
               <button onClick={() => setStatusFilter('COLLECTED')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'COLLECTED' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400'}`}>Paid</button>
@@ -688,7 +860,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                   <th className="px-10 py-6">Status</th>
                   <th className="px-10 py-6">Collector</th>
                   <th className="px-10 py-6">Mode</th>
-                  <th className="px-10 py-6 text-right">Net Recievable</th>
+                  <th className="px-10 py-6 text-right">Net Receivable</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -729,7 +901,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4"><Download className="w-8 h-8 text-blue-600" /></div>
                 <h3 className="text-lg font-black mb-2 uppercase">Backup Data</h3>
                 <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Download everything as JSON file</p>
-                <button onClick={handleExport} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Export Backup</button>
+                <button onClick={onBackupClick} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Export Backup</button>
               </div>
 
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
@@ -811,7 +983,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                        <button
                           key={table.id}
                           onClick={() => { setSelectedTable(table.id); setEditingRecord(null); }}
-                          className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-wider ${
+                          className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-wider whitespace-nowrap ${
                              selectedTable === table.id 
                                 ? 'bg-slate-900 text-white shadow-xl translate-x-1' 
                                 : 'bg-white text-slate-400 hover:bg-slate-100'
@@ -829,10 +1001,10 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                  {/* Right Side: Data View or Edit Form */}
                  <div className="flex-1 bg-white overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm z-10">
-                       <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest">
+                       <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest truncate">
                           {editingRecord ? `Editing Entry: ${editingRecord.name || editingRecord.id}` : `Viewing Table: ${tables.find(t => t.id === selectedTable)?.name}`}
                        </h4>
-                       <div className="text-[9px] font-black text-emerald-500 flex items-center gap-2">
+                       <div className="text-[9px] font-black text-emerald-500 flex items-center gap-2 whitespace-nowrap">
                           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                           LIVE CONNECTION
                        </div>

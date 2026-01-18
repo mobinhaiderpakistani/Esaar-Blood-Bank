@@ -1,14 +1,16 @@
+
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LogOut, Droplets, User as UserIcon, Settings } from 'lucide-react';
+import { LogOut, Droplets, User as UserIcon, Settings, CloudDownload } from 'lucide-react';
 
 interface Props {
   user: User;
   onLogout: () => void;
   onProfileClick?: () => void;
+  onBackupClick?: () => void;
 }
 
-const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick }) => {
+const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick, onBackupClick }) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -28,7 +30,17 @@ const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick }) =>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          {onBackupClick && (
+            <button 
+              onClick={onBackupClick}
+              title="Database Backup (Choose Location)"
+              className="p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all border border-blue-100 flex items-center justify-center group"
+            >
+              <CloudDownload className="w-5 h-5 group-active:scale-90 transition-transform" />
+            </button>
+          )}
+
           <div 
             onClick={onProfileClick}
             className={`flex flex-col items-end mr-2 ${onProfileClick ? 'cursor-pointer hover:opacity-70 transition-all group' : ''}`}
@@ -39,6 +51,7 @@ const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick }) =>
             </div>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{user.role} PANEL</span>
           </div>
+          
           <button 
             onClick={onLogout}
             className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
