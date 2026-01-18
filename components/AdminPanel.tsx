@@ -109,6 +109,34 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     return { arrears, totalDue, paidThisMonth, currentDeficit };
   };
 
+  const calculateDuration = (joinDateStr: string) => {
+    if (!joinDateStr) return '0m';
+    const joinDate = new Date(joinDateStr);
+    const now = new Date();
+    let years = now.getFullYear() - joinDate.getFullYear();
+    let months = now.getMonth() - joinDate.getMonth();
+    
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    
+    const parts = [];
+    if (years > 0) parts.push(`${years}y`);
+    if (months > 0 || (years === 0 && months === 0)) parts.push(`${months}m`);
+    return parts.join(' ');
+  };
+
+  const formatDateToDMY = (dateStr: string) => {
+    if (!dateStr) return 'N/A';
+    const cleanDate = dateStr.split('T')[0];
+    const parts = cleanDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return cleanDate;
+  };
+
   const cityFiltered = selectedCityFilter === 'All' ? donorsListRaw : donorsListRaw.filter(d => d.city === selectedCityFilter);
   const donorsList = cityFiltered.filter(d => 
     (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -126,7 +154,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
   const totalArrearsGlobal = metricsMap.reduce((sum, m) => sum + m.arrears, 0);
   const totalCurrentDeficit = metricsMap.reduce((sum, m) => sum + m.currentDeficit, 0);
 
-  // FIX: City-wise comparison (Target vs Collected) + FILTER OUT ZERO TARGETS
   const chartDataCities = (selectedCityFilter === 'All' ? citiesRaw : [selectedCityFilter])
     .map(city => {
       const cityDonors = donorsListRaw.filter(d => d.city === city);
@@ -142,7 +169,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
         
       return { name: city, target, collected };
     })
-    .filter(cityData => cityData.target > 0); // Only include cities with some target
+    .filter(cityData => cityData.target > 0);
 
   const pieDataStatus = [
     { name: 'Paid', value: historyList.length },
@@ -214,7 +241,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
         </div>
       )}
 
-      {/* Header Area */}
       <div className="flex items-center gap-2 overflow-x-auto py-2 scrollbar-hide no-print">
         <button onClick={() => setShowAreaManagement(true)} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm"><Settings className="w-5 h-5" /></button>
         <button onClick={() => setSelectedCityFilter('All')} className={`px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedCityFilter === 'All' ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-500'}`}>All Areas</button>
@@ -291,7 +317,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column: Bar Graph - FIXED TO SHOW TARGET VS COLLECTED */}
             <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col h-[500px]">
                <h3 className="text-sm font-black uppercase text-slate-400 mb-8 tracking-widest">Collection Target vs Received</h3>
                <div className="flex-1">
@@ -304,14 +329,13 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                         contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
                       />
                       <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{paddingBottom: '20px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase'}} />
-                      <Bar name="Target" dataKey="target" fill="#ef4444" radius={[8, 8, 8, 8]} barSize={35} />
-                      <Bar name="Collected" dataKey="collected" fill="#10b981" radius={[8, 8, 8, 8]} barSize={35} />
+                      <Bar name="Target" dataKey="target" fill="#ef4444" radius={[8, 8, 8, 8]} barSize={45} />
+                      <Bar name="Collected" dataKey="collected" fill="#10b981" radius={[8, 8, 8, 8]} barSize={45} />
                    </BarChart>
                  </ResponsiveContainer>
                </div>
             </div>
 
-            {/* Right Column: Stacked Pies */}
             <div className="flex flex-col gap-6 h-[500px]">
               <div className="flex-1 bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center">
                  <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest text-center">Status</h3>
@@ -359,37 +383,50 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
                   <th className="px-10 py-6">Donor Info</th>
+                  <th className="px-10 py-6">Join Date</th>
                   <th className="px-10 py-6">Referral</th>
                   <th className="px-10 py-6">Collector</th>
                   <th className="px-10 py-6">Monthly</th>
+                  <th className="px-10 py-6">Total Collected</th>
                   <th className="px-10 py-6 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {donorsList.map(donor => (
-                  <tr key={donor.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-10 py-8">
-                      <div className="font-black text-slate-900">{donor.name}</div>
-                      <div className="text-[10px] font-bold text-slate-400">{donor.phone}</div>
-                      <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5">{donor.city}</div>
-                      <div className="text-[10px] text-slate-400 font-medium italic mt-1">{donor.address}</div>
-                    </td>
-                    <td className="px-10 py-8 font-bold text-xs text-slate-500">{donor.referredBy || 'Self'}</td>
-                    <td className="px-10 py-8">
-                      <div className="text-[10px] font-black text-slate-900 uppercase">
-                        {collectorsRaw.find(c => c.id === donor.assignedCollectorId)?.name || 'Unassigned'}
-                      </div>
-                    </td>
-                    <td className="px-10 py-8 font-black text-slate-600">Rs. {donor.monthlyAmount.toLocaleString()}</td>
-                    <td className="px-10 py-8 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
-                        <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
-                        <button onClick={() => { if(window.confirm('Delete Donor?')) onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id) })}} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {donorsList.map(donor => {
+                  const totalCollected = historyRaw
+                    .filter(h => h.donorId === donor.id)
+                    .reduce((sum, h) => sum + h.amount, 0);
+
+                  return (
+                    <tr key={donor.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-10 py-8">
+                        <div className="font-black text-slate-900">{donor.name}</div>
+                        <div className="text-[10px] font-bold text-slate-400">{donor.phone}</div>
+                        <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5">{donor.city}</div>
+                        <div className="text-[10px] text-slate-400 font-medium italic mt-1">{donor.address}</div>
+                      </td>
+                      <td className="px-10 py-8">
+                        <div className="font-black text-slate-600 text-xs">{formatDateToDMY(donor.joinDate)}</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">{calculateDuration(donor.joinDate)}</div>
+                      </td>
+                      <td className="px-10 py-8 font-bold text-xs text-slate-500">{donor.referredBy || 'Self'}</td>
+                      <td className="px-10 py-8">
+                        <div className="text-[10px] font-black text-slate-900 uppercase">
+                          {collectorsRaw.find(c => c.id === donor.assignedCollectorId)?.name || 'Unassigned'}
+                        </div>
+                      </td>
+                      <td className="px-10 py-8 font-black text-slate-600">Rs. {donor.monthlyAmount.toLocaleString()}</td>
+                      <td className="px-10 py-8 font-black text-emerald-600">Rs. {totalCollected.toLocaleString()}</td>
+                      <td className="px-10 py-8 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
+                          <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
+                          <button onClick={() => { if(window.confirm('Delete Donor?')) onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id) })}} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -456,19 +493,30 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
                   <th className="px-10 py-6">Arrears</th>
                   <th className="px-10 py-6">Monthly</th>
                   <th className="px-10 py-6">Status</th>
-                  <th className="px-10 py-6 text-right">Payable</th>
+                  <th className="px-10 py-6">Collector</th>
+                  <th className="px-10 py-6">Mode</th>
+                  <th className="px-10 py-6 text-right">Net Recievable</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {comprehensiveHistory.map(row => (
-                  <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-10 py-6"><div className="font-black text-slate-900">{row.name}</div><div className="text-[10px] font-bold text-blue-600 uppercase">{row.city}</div></td>
-                    <td className="px-10 py-6 font-black text-slate-400">Rs. {row.arrears.toLocaleString()}</td>
-                    <td className="px-10 py-6 font-black text-slate-600">Rs. {row.monthlyAmount.toLocaleString()}</td>
-                    <td className="px-10 py-6"><div className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[9px] font-black uppercase ${row.status === 'COLLECTED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.status}</div></td>
-                    <td className="px-10 py-6 text-right font-black text-lg">Rs. {row.totalDue.toLocaleString()}</td>
-                  </tr>
-                ))}
+                {comprehensiveHistory.map(row => {
+                  const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
+                  // Modified logic: Only show collector/mode if donation is collected
+                  const displayCollector = row.status === 'COLLECTED' ? (record?.collectorName || '---') : '---';
+                  const displayMode = row.status === 'COLLECTED' ? (record?.paymentMethod || '---') : '---';
+
+                  return (
+                    <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-10 py-6"><div className="font-black text-slate-900">{row.name}</div><div className="text-[10px] font-bold text-blue-600 uppercase">{row.city}</div></td>
+                      <td className="px-10 py-6 font-black text-slate-400">Rs. {row.arrears.toLocaleString()}</td>
+                      <td className="px-10 py-6 font-black text-slate-600">Rs. {row.monthlyAmount.toLocaleString()}</td>
+                      <td className="px-10 py-6"><div className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[9px] font-black uppercase ${row.status === 'COLLECTED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.status}</div></td>
+                      <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayCollector}</td>
+                      <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayMode}</td>
+                      <td className="px-10 py-6 text-right font-black text-lg">Rs. {row.totalDue.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -486,7 +534,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
         </div>
       )}
 
-      {/* Modals */}
       {editingDonor && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto">
