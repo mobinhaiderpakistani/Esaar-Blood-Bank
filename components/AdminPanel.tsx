@@ -1,5 +1,6 @@
+
 import React, { useState, useRef } from 'react';
-import { AppState, Donor, User, UserRole, DonationRecord } from '../types';
+import { AppState, Donor, User, UserRole, DonationRecord, LogEntry } from '../types';
 import { 
   Users, 
   UserCheck, 
@@ -33,7 +34,9 @@ import {
   Clock,
   CloudDownload,
   Printer,
-  FileDown
+  FileDown,
+  Activity,
+  ClipboardList
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -94,6 +97,19 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const historyRaw = state.donationHistory || [];
   const citiesRaw = state.cities || [];
   const collectorsRaw = state.collectors || [];
+  const logsRaw = state.logs || [];
+
+  const addLog = (action: string, type: LogEntry['type'] = 'INFO') => {
+    const newLog: LogEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId: state.currentUser?.id || 'unknown',
+      userName: state.currentUser?.name || 'Unknown',
+      action,
+      timestamp: new Date().toISOString(),
+      type
+    };
+    return [newLog, ...logsRaw.slice(0, 99)]; // Keep last 100 logs
+  };
 
   const tables = [
     { id: 'donors', name: 'Donors', icon: <Users className="w-4 h-4" />, data: state.donors },
@@ -170,7 +186,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const handleMasterReset = () => {
     if (window.confirm("خطرہ: تمام ادائیگیوں کا ریکارڈ مٹ جائے گا اور سسٹم دوبارہ جنوری 2026 پر سیٹ ہو جائے گا۔")) {
       setIsProcessing(true);
-      onUpdateState({ donationHistory: [], currentMonthKey: SYSTEM_START_DATE_STR });
+      const updatedLogs = addLog("Performed Master Reset (Wiped All Payments)", "DANGER");
+      onUpdateState({ donationHistory: [], currentMonthKey: SYSTEM_START_DATE_STR, logs: updatedLogs });
       setTimeout(() => { setIsProcessing(false); setActiveTab('dashboard'); }, 800);
     }
   };
@@ -183,7 +200,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       try {
         const json = JSON.parse(event.target?.result as string);
         if (confirm("کیا آپ واقعی بیک اپ سے ڈیٹا ری سٹور کرنا چاہتے ہیں؟ موجودہ تمام ڈیٹا تبدیل ہو جائے گا۔")) {
-          onUpdateState(json);
+          const updatedLogs = addLog("Restored Database from Backup File", "WARNING");
+          onUpdateState({ ...json, logs: updatedLogs });
           alert("Data restored successfully!");
         }
       } catch (err) {
@@ -213,7 +231,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       item.id === editingRecord.id ? editedData : item
     );
 
-    onUpdateState({ [updateKey]: updatedList });
+    const updatedLogs = addLog(`Manually edited a record in ${selectedTable} table`, "WARNING");
+    onUpdateState({ [updateKey]: updatedList, logs: updatedLogs });
     setEditingRecord(null);
     setEditedData(null);
     alert("Record updated successfully!");
@@ -324,7 +343,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     let nextY = yearNum;
     let nextM = monthNum + 1;
     if (nextM > 12) { nextM = 1; nextY++; }
-    onUpdateState({ currentMonthKey: `${nextY}-${String(nextM).padStart(2, '0')}` });
+    const updatedLogs = addLog(`Advanced billing cycle to ${new Date(nextY, nextM - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`, "INFO");
+    onUpdateState({ currentMonthKey: `${nextY}-${String(nextM).padStart(2, '0')}`, logs: updatedLogs });
   };
 
   const handlePrevMonth = () => {
@@ -332,7 +352,10 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     let prevM = monthNum - 1;
     if (prevM < 1) { prevM = 12; prevY--; }
     const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
-    if (prevKey >= SYSTEM_START_DATE_STR) onUpdateState({ currentMonthKey: prevKey });
+    if (prevKey >= SYSTEM_START_DATE_STR) {
+      const updatedLogs = addLog(`Reverted billing cycle back to ${new Date(prevY, prevM - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`, "INFO");
+      onUpdateState({ currentMonthKey: prevKey, logs: updatedLogs });
+    }
   };
 
   const cityFiltered = selectedCityFilter === 'All' ? donorsListRaw : donorsListRaw.filter(d => d.city === selectedCityFilter);
@@ -413,7 +436,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       status: 'PENDING',
       joinDate: new Date().toISOString().split('T')[0]
     };
-    onUpdateState({ donors: [...donorsListRaw, donor] });
+    const updatedLogs = addLog(`Registered new donor: ${donor.name}`, "SUCCESS");
+    onUpdateState({ donors: [...donorsListRaw, donor], logs: updatedLogs });
     setShowAddDonorModal(false);
     setNewDonorData({ name: '', phone: '', address: '', city: state.cities[0], monthlyAmount: 1000, referredBy: 'Self', assignedCollectorId: null });
   };
@@ -429,21 +453,30 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       password: newCollectorData.password || '123',
       city: newCollectorData.city || state.cities[0]
     };
-    onUpdateState({ collectors: [...collectorsRaw, agent] });
+    const updatedLogs = addLog(`Added new collection agent: ${agent.name}`, "SUCCESS");
+    onUpdateState({ collectors: [...collectorsRaw, agent], logs: updatedLogs });
     setShowAddCollectorModal(false);
     setNewCollectorData({ name: '', phone: '', username: '', password: '123', city: state.cities[0], role: UserRole.COLLECTOR });
   };
 
   const handleUpdateDonor = () => {
     if (!editingDonor) return;
-    onUpdateState({ donors: donorsListRaw.map(d => d.id === editingDonor.id ? editingDonor : d) });
+    const updatedLogs = addLog(`Updated information for donor: ${editingDonor.name}`, "INFO");
+    onUpdateState({ donors: donorsListRaw.map(d => d.id === editingDonor.id ? editingDonor : d), logs: updatedLogs });
     setEditingDonor(null);
   };
 
   const handleUpdateCollector = () => {
     if (!editingCollector) return;
-    onUpdateState({ collectors: collectorsRaw.map(c => c.id === editingCollector.id ? editingCollector : c) });
+    const updatedLogs = addLog(`Updated profile for agent: ${editingCollector.name}`, "INFO");
+    onUpdateState({ collectors: collectorsRaw.map(c => c.id === editingCollector.id ? editingCollector : c), logs: updatedLogs });
     setEditingCollector(null);
+  };
+
+  const handleClearLogs = () => {
+    if (window.confirm("Clear all system activity logs? This action cannot be undone.")) {
+      onUpdateState({ logs: [] });
+    }
   };
 
   const handlePrintReport = () => window.print();
@@ -503,7 +536,10 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               {citiesRaw.map((city) => (
                 <div key={city} className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
                    <span className="font-black text-slate-800">{city}</span>
-                   <button onClick={() => onUpdateState({ cities: citiesRaw.filter(c => c !== city) })} className="p-2 bg-white rounded-xl text-slate-400 hover:text-red-600 shadow-sm transition-colors"><Trash2 className="w-4 h-4"/></button>
+                   <button onClick={() => { 
+                     const updatedLogs = addLog(`Deleted area: ${city}`, "DANGER");
+                     onUpdateState({ cities: citiesRaw.filter(c => c !== city), logs: updatedLogs }); 
+                   }} className="p-2 bg-white rounded-xl text-slate-400 hover:text-red-600 shadow-sm transition-colors"><Trash2 className="w-4 h-4"/></button>
                 </div>
               ))}
            </div>
@@ -719,7 +755,12 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                         <div className="flex items-center justify-center gap-2">
                           <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
                           <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
-                          <button onClick={() => { if(window.confirm('Delete Donor?')) onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id) })}} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
+                          <button onClick={() => { 
+                            if(window.confirm('Delete Donor?')) {
+                              const updatedLogs = addLog(`Deleted donor record: ${donor.name}`, "DANGER");
+                              onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id), logs: updatedLogs });
+                            }
+                          }} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
                         </div>
                       </td>
                     </tr>
@@ -762,7 +803,12 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                     <td className="px-10 py-8 text-center">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => setEditingCollector(c)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
-                        <button onClick={() => { if(window.confirm('Delete Agent?')) onUpdateState({ collectors: collectorsRaw.filter(col => col.id !== c.id) })}} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
+                        <button onClick={() => { 
+                          if(window.confirm('Delete Agent?')) {
+                            const updatedLogs = addLog(`Deactivated agent account: ${c.name}`, "DANGER");
+                            onUpdateState({ collectors: collectorsRaw.filter(col => col.id !== c.id), logs: updatedLogs });
+                          }
+                        }} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
                       </div>
                     </td>
                   </tr>
@@ -964,6 +1010,70 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                        {editingRecord ? renderEditForm() : renderTableData()}
                     </div>
                  </div>
+              </div>
+           </div>
+
+           {/* SYSTEM LOG BOX */}
+           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                    <div className="p-3 bg-slate-900 rounded-2xl text-white"><Activity className="w-6 h-6" /></div>
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight">System Activity Log</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tracking actions of all users</p>
+                    </div>
+                 </div>
+                 <button onClick={handleClearLogs} className="px-6 py-2.5 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-100">
+                    Clear Logs
+                 </button>
+              </div>
+              <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                 {logsRaw.length > 0 ? (
+                    <table className="w-full text-left text-xs">
+                       <thead className="bg-slate-50 sticky top-0 z-10">
+                          <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                             <th className="px-8 py-4">Time & Date</th>
+                             <th className="px-8 py-4">User</th>
+                             <th className="px-8 py-4">Action Description</th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y divide-slate-100">
+                          {logsRaw.map(log => (
+                             <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-8 py-5 whitespace-nowrap">
+                                   <div className="flex flex-col">
+                                      <span className="font-black text-slate-900">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(log.timestamp).toLocaleDateString('en-GB')}</span>
+                                   </div>
+                                </td>
+                                <td className="px-8 py-5">
+                                   <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">
+                                         {log.userName.charAt(0)}
+                                      </div>
+                                      <span className="font-black text-slate-700">{log.userName}</span>
+                                   </div>
+                                </td>
+                                <td className="px-8 py-5">
+                                   <div className="flex items-center gap-3">
+                                      <div className={`w-2 h-2 rounded-full ${
+                                         log.type === 'SUCCESS' ? 'bg-emerald-500' : 
+                                         log.type === 'DANGER' ? 'bg-red-500 animate-pulse' : 
+                                         log.type === 'WARNING' ? 'bg-amber-500' : 'bg-blue-500'
+                                      }`} />
+                                      <span className="font-bold text-slate-600 leading-relaxed">{log.action}</span>
+                                   </div>
+                                </td>
+                             </tr>
+                          ))}
+                       </tbody>
+                    </table>
+                 ) : (
+                    <div className="py-20 text-center flex flex-col items-center">
+                       <ClipboardList className="w-12 h-12 text-slate-100 mb-4" />
+                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No activity logged yet</p>
+                    </div>
+                 )}
               </div>
            </div>
         </div>

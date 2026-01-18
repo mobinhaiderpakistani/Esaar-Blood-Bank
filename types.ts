@@ -41,11 +41,21 @@ export interface DonationRecord {
   receiptSent: boolean;
 }
 
+export interface LogEntry {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  timestamp: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER';
+}
+
 export interface AppState {
   currentUser: User | null;
   donors: Donor[];
   collectors: User[];
   donationHistory: DonationRecord[];
+  logs: LogEntry[];
   cities: string[];
   currentMonthKey: string;
   adminPassword?: string;

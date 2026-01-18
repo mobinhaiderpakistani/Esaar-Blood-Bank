@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { AppState, User, UserRole } from './types';
+import { AppState, User, UserRole, LogEntry } from './types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
 import DashboardHeader from './components/DashboardHeader';
 import AdminPanel from './components/AdminPanel';
@@ -28,6 +29,7 @@ const App: React.FC = () => {
     donors: INITIAL_DONORS,
     collectors: INITIAL_COLLECTORS,
     donationHistory: [],
+    logs: [],
     cities: CITIES,
     currentMonthKey: "2026-01", 
     adminPassword: "admin",
@@ -61,6 +63,7 @@ const App: React.FC = () => {
           donors: ensureArray(cloudData.donors),
           collectors: ensureArray(cloudData.collectors),
           donationHistory: ensureArray(cloudData.donationHistory),
+          logs: ensureArray(cloudData.logs),
           cities: ensureArray(cloudData.cities),
           currentMonthKey: cloudData.currentMonthKey || "2026-01",
           adminPassword: cloudData.adminPassword || "admin",
@@ -72,6 +75,7 @@ const App: React.FC = () => {
           donors: INITIAL_DONORS,
           collectors: INITIAL_COLLECTORS,
           donationHistory: [],
+          logs: [],
           cities: CITIES,
           currentMonthKey: "2026-01",
           adminPassword: "admin",
@@ -93,6 +97,7 @@ const App: React.FC = () => {
         donors: updatedFullState.donors,
         collectors: updatedFullState.collectors,
         donationHistory: updatedFullState.donationHistory,
+        logs: updatedFullState.logs,
         cities: updatedFullState.cities,
         currentMonthKey: updatedFullState.currentMonthKey,
         adminPassword: updatedFullState.adminPassword || "admin",
@@ -108,6 +113,7 @@ const App: React.FC = () => {
       donors: state.donors,
       collectors: state.collectors,
       donationHistory: state.donationHistory,
+      logs: state.logs,
       cities: state.cities,
       currentMonthKey: state.currentMonthKey
     };

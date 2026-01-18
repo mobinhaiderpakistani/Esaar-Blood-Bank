@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { AppState, Donor, User, DonationRecord } from '../types';
+import { AppState, Donor, User, DonationRecord, LogEntry } from '../types';
 import { 
   MapPin, 
   DollarSign, 
@@ -21,8 +20,7 @@ import {
   Calendar, 
   ClipboardList, 
   Phone,
-  Edit3,
-  CalendarDays
+  Edit3
 } from 'lucide-react';
 
 interface Props {
@@ -41,7 +39,6 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
   const [pendingSelection, setPendingSelection] = useState<Donor | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'ONLINE'>('CASH');
   const [manualAmount, setManualAmount] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -107,7 +104,6 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
     setPendingSelection(donor);
     setManualAmount(balance.toString());
     setSelectedPaymentMethod('CASH');
-    setSelectedDate(new Date().toISOString().split('T')[0]); // Reset to today
   };
 
   const handleCollect = () => {
@@ -119,10 +115,8 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
       return;
     }
 
-    // We use the selectedDate but add current time to it to keep sortability consistent
-    const finalDate = new Date(selectedDate);
     const now = new Date();
-    finalDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+    const isoDate = now.toISOString();
 
     const newRecord: DonationRecord = {
       id: Math.random().toString(36).substr(2, 9),
@@ -131,17 +125,31 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
       amount: amountToRecord,
       collectorId: user.id,
       collectorName: user.name,
-      date: finalDate.toISOString(),
+      date: isoDate,
       paymentMethod: selectedPaymentMethod,
       receiptSent: true
     };
 
     const updatedDonors = state.donors.map(d => 
-      d.id === pendingSelection.id ? { ...d, lastPaymentDate: selectedDate } : d
+      d.id === pendingSelection.id ? { ...d, lastPaymentDate: isoDate.split('T')[0] } : d
     );
 
-    onUpdateState({ donors: updatedDonors, donationHistory: [newRecord, ...state.donationHistory] });
-    setLastProcessedDonor({ name: pendingSelection.name, amount: amountToRecord, phone: pendingSelection.phone, date: selectedDate });
+    const newLog: LogEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId: user.id,
+      userName: user.name,
+      action: `Collected Rs. ${amountToRecord.toLocaleString()} from ${pendingSelection.name} (${selectedPaymentMethod})`,
+      timestamp: isoDate,
+      type: 'SUCCESS'
+    };
+
+    onUpdateState({ 
+      donors: updatedDonors, 
+      donationHistory: [newRecord, ...state.donationHistory],
+      logs: [newLog, ...(state.logs || []).slice(0, 99)]
+    });
+    
+    setLastProcessedDonor({ name: pendingSelection.name, amount: amountToRecord, phone: pendingSelection.phone, date: isoDate });
     setIsSuccessModalOpen(true);
     setPendingSelection(null);
   };
@@ -154,7 +162,17 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
     const updatedCollectors = state.collectors.map(c => 
       c.id === user.id ? { ...c, password: newPassword } : c
     );
-    onUpdateState({ collectors: updatedCollectors });
+    
+    const newLog: LogEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId: user.id,
+      userName: user.name,
+      action: `Agent updated their account password`,
+      timestamp: new Date().toISOString(),
+      type: 'INFO'
+    };
+
+    onUpdateState({ collectors: updatedCollectors, logs: [newLog, ...(state.logs || []).slice(0, 99)] });
     setIsSettingsOpen(false);
     setNewPassword('');
     setConfirmPassword('');
@@ -267,10 +285,10 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
         </div>
       )}
 
-      {/* COLLECTION MODAL (Improved with Date Picker) */}
+      {/* COLLECTION MODAL */}
       {pendingSelection && (
         <div className="fixed inset-0 z-[5000] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 animate-in slide-in-from-bottom duration-300">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{pendingSelection.name}</h3>
@@ -281,40 +299,25 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
               </button>
             </div>
 
-            <div className="space-y-4 mb-8">
-              {/* Amount field */}
-              <div className="bg-slate-50 p-6 rounded-3xl flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                    Amount <Edit3 className="w-2.5 h-2.5" />
-                  </p>
-                  <div className="flex items-center">
-                    <span className="text-2xl font-black text-slate-900 mr-1">Rs.</span>
-                    <input 
-                      type="number" 
-                      className="bg-transparent text-2xl font-black text-slate-900 outline-none w-full"
-                      value={manualAmount}
-                      onChange={(e) => setManualAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="text-right ml-4">
-                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Full Due</p>
-                  <p className="text-xs font-black text-slate-400">Rs. {getDonorBalance(pendingSelection).toLocaleString()}</p>
+            <div className="bg-slate-50 p-6 rounded-3xl mb-6 flex items-center justify-between group">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                  Amount <Edit3 className="w-2.5 h-2.5" />
+                </p>
+                <div className="flex items-center">
+                  <span className="text-2xl font-black text-slate-900 mr-1">Rs.</span>
+                  <input 
+                    type="number" 
+                    className="bg-transparent text-2xl font-black text-slate-900 outline-none w-full border-b border-transparent focus:border-red-200 transition-all"
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    autoFocus
+                  />
                 </div>
               </div>
-
-              {/* Date Field */}
-              <div className="bg-slate-50 p-6 rounded-3xl">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                  <CalendarDays className="w-3 h-3" /> Collection Date
-                </p>
-                <input 
-                  type="date" 
-                  className="bg-transparent text-base font-black text-slate-900 outline-none w-full cursor-pointer"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
+              <div className="text-right ml-4">
+                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Full Due</p>
+                <p className="text-xs font-black text-slate-400">Rs. {getDonorBalance(pendingSelection).toLocaleString()}</p>
               </div>
             </div>
 
