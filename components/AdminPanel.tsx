@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { AppState, Donor, User, UserRole, DonationRecord } from '../types';
 import { 
@@ -49,7 +48,6 @@ interface Props {
 
 const COLORS = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
-// Custom WhatsApp Icon SVG
 const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
@@ -515,6 +513,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 ⚠️ Total Deficit: *Rs. ${totalCurrentDeficit.toLocaleString()}*
 ⏳ Total Arrears: *Rs. ${totalArrearsGlobal.toLocaleString()}*
 
+💵 Cash: *Rs. ${cashSum.toLocaleString()}*
+🌐 Online: *Rs. ${onlineSum.toLocaleString()}*
+
 👥 Paid Donors: *${historyList.length}*
 ❌ Pending Donors: *${Math.max(0, cityFiltered.length - historyList.length)}*
 --------------------------------
@@ -821,25 +822,13 @@ _Generated via Esaar Blood Bank Cloud_`;
             <div className="flex items-center gap-4">
                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Status Board ({monthName})</h2>
                <div className="flex items-center gap-2">
-                 <button 
-                  onClick={handlePrintReport}
-                  title="Print Report"
-                  className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg"
-                 >
+                 <button onClick={handlePrintReport} title="Print Report" className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg">
                    <Printer className="w-4 h-4" />
                  </button>
-                 <button 
-                  onClick={handleDownloadPDF}
-                  title="Export to PDF File"
-                  className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg"
-                 >
+                 <button onClick={handleDownloadPDF} title="Export to PDF File" className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg">
                    <FileDown className="w-4 h-4" />
                  </button>
-                 <button 
-                  onClick={handleWhatsAppTextReport}
-                  title="WhatsApp Text Report"
-                  className="p-3 bg-emerald-50 text-emerald-600 hover:bg-[#25D366] hover:text-white rounded-2xl transition-all border border-emerald-100 hover:shadow-lg"
-                 >
+                 <button onClick={handleWhatsAppTextReport} title="WhatsApp Text Report" className="p-3 bg-emerald-50 text-emerald-600 hover:bg-[#25D366] hover:text-white rounded-2xl transition-all border border-emerald-100 hover:shadow-lg">
                    <WhatsAppIcon className="w-4 h-4" />
                  </button>
                </div>
@@ -874,7 +863,26 @@ _Generated via Esaar Blood Bank Cloud_`;
                       <td className="px-10 py-6"><div className="font-black text-slate-900">{row.name}</div><div className="text-[10px] font-bold text-blue-600 uppercase">{row.city}</div></td>
                       <td className="px-10 py-6 font-black text-slate-400">Rs. {row.arrears.toLocaleString()}</td>
                       <td className="px-10 py-6 font-black text-slate-600">Rs. {row.monthlyAmount.toLocaleString()}</td>
-                      <td className="px-10 py-6"><div className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[9px] font-black uppercase ${row.status === 'COLLECTED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.status}</div></td>
+                      <td className="px-10 py-6">
+                        {row.status === 'COLLECTED' && record ? (
+                          <div className="flex flex-col gap-1.5 items-start">
+                            {/* Line 1: Amount Received */}
+                            <span className="text-[11px] font-black text-slate-900 tracking-tight">Rs. {record.amount.toLocaleString()}</span>
+                            {/* Line 2: COLLECTED Status Badge */}
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest">
+                              COLLECTED
+                            </div>
+                            {/* Line 3: Exact Date and Time */}
+                            <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 leading-none opacity-90">
+                              {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-2xl text-[9px] font-black uppercase">
+                            PENDING
+                          </div>
+                        )}
+                      </td>
                       <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayCollector}</td>
                       <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayMode}</td>
                       <td className="px-10 py-6 text-right font-black text-lg">Rs. {row.totalDue.toLocaleString()}</td>
@@ -912,57 +920,6 @@ _Generated via Esaar Blood Bank Cloud_`;
               </div>
            </div>
 
-           {/* Calendar Roadmap Box */}
-           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-red-50 rounded-2xl text-red-600"><CalendarRange className="w-6 h-6" /></div>
-                    <div>
-                        <h3 className="text-xl font-black uppercase">Calendar Roadmap</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yearly Cycle Overview</p>
-                    </div>
-                 </div>
-                 <div className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-sm tracking-widest">
-                    {yearNum}
-                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                 <div className="p-8 border-r border-slate-100 bg-slate-50/30">
-                    <h4 className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-6 flex items-center gap-2">
-                       <CheckCircle2 className="w-3 h-3" /> Created Lists
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                       {createdRoadmap.map(m => (
-                          <div key={m.key} className={`flex items-center justify-between p-4 rounded-2xl border ${m.key === activeMonthKey ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg scale-105' : 'bg-white text-slate-600 border-slate-100'}`}>
-                             <span className="font-black text-[11px] uppercase">{m.name}</span>
-                             {m.key === activeMonthKey ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
-                          </div>
-                       ))}
-                    </div>
-                 </div>
-                 <div className="p-8 bg-white">
-                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6 flex items-center gap-2">
-                       <Clock className="w-3 h-3" /> Upcoming Lists
-                    </h4>
-                    {upcomingRoadmap.length > 0 ? (
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {upcomingRoadmap.map(m => (
-                             <div key={m.key} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 text-slate-400">
-                                <span className="font-black text-[11px] uppercase">{m.name}</span>
-                                <Calendar className="w-3 h-3 opacity-30" />
-                             </div>
-                          ))}
-                       </div>
-                    ) : (
-                       <div className="py-10 text-center">
-                          <AlertCircle className="w-8 h-8 text-slate-100 mx-auto mb-2" />
-                          <p className="text-[10px] font-black text-slate-300 uppercase">Year cycle complete</p>
-                       </div>
-                    )}
-                 </div>
-              </div>
-           </div>
-
            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col h-[650px]">
               <div className="p-8 border-b border-slate-100 flex items-center gap-4">
                  <div className="p-3 bg-slate-50 rounded-2xl text-slate-400"><TableIcon className="w-6 h-6" /></div>
@@ -970,25 +927,11 @@ _Generated via Esaar Blood Bank Cloud_`;
                     <h3 className="text-xl font-black uppercase">Live Data Editor</h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select, view, and manually edit records</p>
                  </div>
-                 {editingRecord && (
-                    <div className="flex items-center gap-2 animate-in fade-in zoom-in">
-                       <span className="px-3 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded-lg">Manual Edit Mode</span>
-                    </div>
-                 )}
               </div>
               <div className="flex-1 flex overflow-hidden">
-                 {/* Left Sidebar: Table List */}
                  <div className="w-64 border-r border-slate-100 bg-slate-50/50 flex flex-col p-4 gap-2 overflow-y-auto">
                     {tables.map(table => (
-                       <button
-                          key={table.id}
-                          onClick={() => { setSelectedTable(table.id); setEditingRecord(null); }}
-                          className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-wider whitespace-nowrap ${
-                             selectedTable === table.id 
-                                ? 'bg-slate-900 text-white shadow-xl translate-x-1' 
-                                : 'bg-white text-slate-400 hover:bg-slate-100'
-                          }`}
-                       >
+                       <button key={table.id} onClick={() => { setSelectedTable(table.id); setEditingRecord(null); }} className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-wider whitespace-nowrap ${selectedTable === table.id ? 'bg-slate-900 text-white shadow-xl translate-x-1' : 'bg-white text-slate-400 hover:bg-slate-100'}`}>
                           {table.icon}
                           <span className="flex-1 text-left">{table.name}</span>
                           <span className={`text-[8px] px-2 py-0.5 rounded-full ${selectedTable === table.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
@@ -997,18 +940,7 @@ _Generated via Esaar Blood Bank Cloud_`;
                        </button>
                     ))}
                  </div>
-
-                 {/* Right Side: Data View or Edit Form */}
                  <div className="flex-1 bg-white overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm z-10">
-                       <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest truncate">
-                          {editingRecord ? `Editing Entry: ${editingRecord.name || editingRecord.id}` : `Viewing Table: ${tables.find(t => t.id === selectedTable)?.name}`}
-                       </h4>
-                       <div className="text-[9px] font-black text-emerald-500 flex items-center gap-2 whitespace-nowrap">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                          LIVE CONNECTION
-                       </div>
-                    </div>
                     <div className="flex-1 overflow-auto custom-scrollbar">
                        {editingRecord ? renderEditForm() : renderTableData()}
                     </div>
@@ -1018,7 +950,6 @@ _Generated via Esaar Blood Bank Cloud_`;
         </div>
       )}
 
-      {/* Modals */}
       {editingDonor && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto">
@@ -1032,44 +963,6 @@ _Generated via Esaar Blood Bank Cloud_`;
               <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Collector</label><select className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold" value={editingDonor.assignedCollectorId || ''} onChange={e => setEditingDonor({...editingDonor, assignedCollectorId: e.target.value})}><option value="">Unassigned</option>{collectorsRaw.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             </div>
             <button onClick={() => { onUpdateState({ donors: donorsListRaw.map(d => d.id === editingDonor.id ? editingDonor : d) }); setEditingDonor(null); }} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase shadow-lg">Save Changes</button>
-          </div>
-        </div>
-      )}
-
-      {editingCollector && (
-        <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-lg rounded-[40px] shadow-2xl p-10">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black uppercase">Edit Agent</h3>
-              <button onClick={() => setEditingCollector(null)} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button>
-            </div>
-            <div className="space-y-4 mb-8">
-              <InputGroup label="Name" value={editingCollector.name} onChange={v => setEditingCollector({...editingCollector, name: v})} />
-              <InputGroup label="Phone" value={editingCollector.phone} onChange={v => setEditingCollector({...editingCollector, phone: v})} />
-              <InputGroup label="Username" value={editingCollector.username} onChange={v => setEditingCollector({...editingCollector, username: v})} />
-              <InputGroup label="Password" value={editingCollector.password || ''} onChange={v => setEditingCollector({...editingCollector, password: v})} />
-            </div>
-            <button onClick={() => { onUpdateState({ collectors: collectorsRaw.map(c => c.id === editingCollector.id ? editingCollector : c) }); setEditingCollector(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl">Update Profile</button>
-          </div>
-        </div>
-      )}
-
-      {selectedDonorForLedger && (
-        <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl p-10 max-h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center mb-6"><div><h3 className="text-xl font-black uppercase">{selectedDonorForLedger.name}</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Payment Ledger</p></div><button onClick={() => setSelectedDonorForLedger(null)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
-            <div className="overflow-y-auto flex-1 space-y-3 pr-2 custom-scrollbar">
-              {historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).length === 0 ? (
-                <div className="py-20 text-center"><AlertCircle className="w-12 h-12 text-slate-200 mx-auto mb-4" /><p className="text-slate-400 font-bold uppercase text-xs">No records</p></div>
-              ) : (
-                historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).map(h => (
-                  <div key={h.id} className="p-5 bg-slate-50 rounded-2xl flex justify-between items-center border border-slate-100">
-                    <div><p className="text-xs font-black text-slate-900">{new Date(h.date).toLocaleDateString()}</p><p className="text-[9px] text-slate-400 font-bold uppercase">{h.paymentMethod} • Collector: {h.collectorName}</p></div>
-                    <p className="font-black text-emerald-600">Rs. {h.amount.toLocaleString()}</p>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         </div>
       )}

@@ -1,25 +1,25 @@
 import React, { useState } from 'react';
 import { AppState, Donor, User, DonationRecord } from '../types';
 import { 
-  CheckCircle2, 
   MapPin, 
   DollarSign, 
   History, 
-  Search,
-  MessageCircle,
-  Clock,
-  X,
-  Heart,
-  Globe,
-  Wallet,
-  Users,
-  MessageSquare,
-  Settings,
-  Lock,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Calendar
+  Search, 
+  MessageCircle, 
+  Clock, 
+  X, 
+  Heart, 
+  Globe, 
+  Wallet, 
+  Users, 
+  MessageSquare, 
+  Settings, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  Calendar, 
+  ClipboardList, 
+  Phone
 } from 'lucide-react';
 
 interface Props {
@@ -34,45 +34,50 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
   const [searchTerm, setSearchTerm] = useState('');
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [lastProcessedDonor, setLastProcessedDonor] = useState<{name: string, amount: number} | null>(null);
+  const [lastProcessedDonor, setLastProcessedDonor] = useState<{name: string, amount: number, phone: string} | null>(null);
   const [pendingSelection, setPendingSelection] = useState<Donor | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'ONLINE'>('CASH');
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPass, setShowPass] = useState(false);
 
-  const SYSTEM_START_DATE = new Date("2026-01-01");
-  const activeMonthKey = state.currentMonthKey || new Date().toISOString().slice(0, 7);
+  const SYSTEM_START_DATE_STR = "2026-01";
+  const activeMonthKey = state.currentMonthKey || SYSTEM_START_DATE_STR;
   const activeMonthDisplay = new Date(activeMonthKey + "-01").toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // LOGIC FIX: Debt starts tracking from Jan 2026 for logical testing
   const getDonorBalance = (donor: Donor) => {
-    const joinDate = new Date(donor.joinDate);
-    const trackingStartDate = joinDate > SYSTEM_START_DATE ? joinDate : SYSTEM_START_DATE;
-    const currentDate = new Date(activeMonthKey + "-01");
+    const donorJoinMonthStr = (donor.joinDate || SYSTEM_START_DATE_STR).slice(0, 7);
+    const effectiveStartStr = donorJoinMonthStr > SYSTEM_START_DATE_STR ? donorJoinMonthStr : SYSTEM_START_DATE_STR;
     
-    if (currentDate < trackingStartDate) return 0;
+    if (activeMonthKey < effectiveStartStr) return 0;
 
-    let months = (currentDate.getFullYear() - trackingStartDate.getFullYear()) * 12;
-    months -= trackingStartDate.getMonth();
-    months += currentDate.getMonth();
-    months = Math.max(0, months + 1);
-
-    const totalExpected = months * donor.monthlyAmount;
-    const totalPaid = state.donationHistory
-      .filter(h => h.donorId === donor.id)
-      .reduce((sum, h) => sum + h.amount, 0);
+    const [sYear, sMonth] = effectiveStartStr.split('-').map(Number);
+    const [aYear, aMonth] = activeMonthKey.split('-').map(Number);
+    const totalMonthsCount = (aYear - sYear) * 12 + (aMonth - sMonth) + 1;
     
-    return totalExpected - totalPaid;
+    const donorHistory = state.donationHistory.filter(h => h.donorId === donor.id);
+    const totalExpectedCumulative = totalMonthsCount * (donor.monthlyAmount || 0);
+    const validPaidCumulative = donorHistory
+      .filter(h => h.date.slice(0, 7) >= effectiveStartStr)
+      .reduce((sum, h) => sum + (h.amount || 0), 0);
+    
+    return Math.max(0, totalExpectedCumulative - validPaidCumulative);
   };
 
   const myDonors = state.donors.filter(d => d.assignedCollectorId === user.id);
-  const pendingDonors = myDonors.filter(d => 
-    d.status === 'PENDING' && 
-    ((d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-     (d.city || '').toLowerCase().includes(searchTerm.toLowerCase()))
-  ).map(d => ({ ...d, totalBalance: getDonorBalance(d) }));
+  
+  const pendingDonors = myDonors.filter(d => {
+    const isPaidThisMonth = state.donationHistory.some(h => 
+      h.donorId === d.id && h.date.startsWith(activeMonthKey)
+    );
+    
+    const matchesSearch = (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (d.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (d.phone || '').includes(searchTerm);
+    
+    return !isPaidThisMonth && matchesSearch;
+  }).map(d => ({ ...d, totalBalance: getDonorBalance(d) }));
   
   const collectedDonors = state.donationHistory.filter(h => 
     h.collectorId === user.id && 
@@ -108,97 +113,252 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
     };
 
     const updatedDonors = state.donors.map(d => 
-      d.id === pendingSelection.id ? { ...d, status: 'COLLECTED' as const, lastPaymentDate: new Date().toISOString().split('T')[0] } : d
+      d.id === pendingSelection.id ? { ...d, lastPaymentDate: new Date().toISOString().split('T')[0] } : d
     );
 
     onUpdateState({ donors: updatedDonors, donationHistory: [newRecord, ...state.donationHistory] });
-    setLastProcessedDonor({ name: pendingSelection.name, amount: totalDue });
+    setLastProcessedDonor({ name: pendingSelection.name, amount: totalDue, phone: pendingSelection.phone });
     setIsSuccessModalOpen(true);
     setPendingSelection(null);
   };
 
+  const handleUpdatePassword = () => {
+    if (!newPassword || newPassword !== confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+    const updatedCollectors = state.collectors.map(c => 
+      c.id === user.id ? { ...c, password: newPassword } : c
+    );
+    onUpdateState({ collectors: updatedCollectors });
+    setIsSettingsOpen(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    alert("Password updated successfully!");
+  };
+
   return (
-    <div className="max-w-md mx-auto p-4 md:p-6 pb-24">
-      <div className="mb-4 bg-slate-900 text-white p-3 rounded-2xl flex items-center justify-between shadow-lg">
+    <div className="max-w-md mx-auto p-4 md:p-6 pb-24 animate-in fade-in duration-500">
+      <div className="mb-4 bg-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-2">
            <Calendar className="w-4 h-4 text-red-500" />
-           <span className="text-[10px] font-black uppercase tracking-widest">{activeMonthDisplay} List</span>
+           <span className="text-[10px] font-black uppercase tracking-widest">{activeMonthDisplay} Collection</span>
         </div>
         <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400">
-           <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-           LIVE STATUS
+           <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+           LIVE CLOUD
         </div>
       </div>
 
-      <div className="flex justify-between items-center mb-6">
-        <div><h1 className="text-2xl font-black text-slate-900 tracking-tight">Visit List</h1><p className="text-sm font-medium text-slate-500">Collector: {user.name}</p></div>
-        <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-white rounded-xl border border-slate-100 text-slate-400 shadow-sm"><Settings className="w-5 h-5" /></button>
+      <div className="justify-between items-center mb-6 flex">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Visit List</h1>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Agent: {user.name}</p>
+        </div>
+        <button onClick={() => setIsSettingsOpen(true)} className="p-3 bg-white rounded-2xl border border-slate-100 text-slate-400 shadow-sm hover:bg-slate-900 hover:text-white transition-all">
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
 
-      <div className="flex gap-2 mb-6">
-        <button onClick={() => setActiveTab('pending')} className={`flex-1 py-3 px-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all ${activeTab === 'pending' ? 'bg-red-600 text-white shadow-xl' : 'bg-white text-slate-500'}`}><Clock className="w-5 h-5" /> Pending</button>
-        <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 px-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all ${activeTab === 'history' ? 'bg-red-600 text-white shadow-xl' : 'bg-white text-slate-500'}`}><History className="w-5 h-5" /> History</button>
+      <div className="flex gap-2 mb-6 bg-slate-100 p-1.5 rounded-[22px]">
+        <button 
+          onClick={() => setActiveTab('pending')} 
+          className={`flex-1 py-3 px-4 rounded-[18px] font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'pending' ? 'bg-white text-red-600 shadow-sm' : 'bg-transparent text-slate-400'}`}
+        >
+          <Clock className="w-4 h-4" /> Pending
+        </button>
+        <button 
+          onClick={() => setActiveTab('history')} 
+          className={`flex-1 py-3 px-4 rounded-[18px] font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'history' ? 'bg-white text-red-600 shadow-sm' : 'bg-transparent text-slate-400'}`}
+        >
+          <History className="w-4 h-4" /> History
+        </button>
       </div>
 
       {activeTab === 'pending' && (
         <div className="space-y-4">
-          <div className="relative mb-4"><Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" placeholder="Search donors..." className="w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl shadow-sm text-sm font-bold" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-          {pendingDonors.map(donor => (
-            <div key={donor.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative overflow-hidden">
-              {donor.totalBalance > donor.monthlyAmount && <div className="absolute top-0 right-0 bg-red-600 text-white px-3 py-1 rounded-bl-xl text-[8px] font-black uppercase">Arrears Due</div>}
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-2xl bg-red-600 flex items-center justify-center text-white"><Users className="w-6 h-6"/></div><div><h3 className="text-lg font-black text-slate-900">{donor.name}</h3><div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold"><MapPin className="w-3 h-3 text-red-400" /> {donor.city}</div></div></div>
-                <div className="text-right"><p className="text-xl font-black text-slate-900">Rs. {donor.totalBalance.toLocaleString()}</p></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <a href={`tel:${donor.phone}`} className="flex items-center justify-center gap-2 py-3.5 bg-slate-50 rounded-2xl text-slate-700 font-black text-xs uppercase"><MessageCircle className="w-4 h-4" /> Call</a>
-                <button onClick={() => setPendingSelection(donor)} className="flex items-center justify-center gap-2 py-3.5 bg-slate-900 rounded-2xl text-white font-black text-xs uppercase"><DollarSign className="w-4 h-4" /> Collect</button>
-              </div>
+          <div className="relative mb-6">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+            <input 
+              type="text" 
+              placeholder="Search donor..." 
+              className="w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl shadow-sm text-sm font-bold placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-red-100 transition-all" 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+            />
+          </div>
+
+          {pendingDonors.length === 0 ? (
+            <div className="py-20 text-center flex flex-col items-center">
+              <ClipboardList className="w-12 h-12 text-slate-100 mb-4" />
+              <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">No pending collections</p>
             </div>
-          ))}
+          ) : (
+            pendingDonors.map(donor => (
+              <div key={donor.id} onClick={() => setPendingSelection(donor)} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer hover:shadow-md">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-black text-slate-900 tracking-tight text-base">{donor.name}</span>
+                    <div className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black uppercase">{donor.city}</div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-900 font-black">
+                    <Phone className="w-3.5 h-3.5 text-red-600" />
+                    <span>{donor.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-wider">
+                    <MapPin className="w-3 h-3" /> {donor.city}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receivable</p>
+                  <p className="text-lg font-black text-slate-900 tracking-tighter">Rs. {donor.totalBalance.toLocaleString()}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
       {activeTab === 'history' && (
         <div className="space-y-3">
-          {collectedDonors.map(record => (
-            <div key={record.id} className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center border border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${record.paymentMethod === 'ONLINE' ? 'bg-blue-50 text-blue-500' : 'bg-amber-50 text-amber-500'}`}>{record.paymentMethod === 'ONLINE' ? <Globe className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}</div>
-                <div><h4 className="font-black text-slate-900 text-sm">{record.donorName}</h4><p className="text-[9px] text-slate-400 font-bold uppercase">{new Date(record.date).toLocaleTimeString()}</p></div>
-              </div>
-              <div className="text-right"><p className="font-black text-emerald-600 text-sm">Rs. {record.amount.toLocaleString()}</p></div>
+          {collectedDonors.length === 0 ? (
+            <div className="py-20 text-center flex flex-col items-center">
+              <History className="w-12 h-12 text-slate-100 mb-3" />
+              <p className="text-slate-300 font-black uppercase text-[10px] tracking-widest">No history for {activeMonthDisplay}</p>
             </div>
-          ))}
+          ) : (
+            collectedDonors.map(record => (
+              <div key={record.id} className="bg-white p-5 rounded-[24px] shadow-sm flex justify-between items-center border border-slate-50">
+                <div className="flex items-center gap-4">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${record.paymentMethod === 'ONLINE' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                    {record.paymentMethod === 'ONLINE' ? <Globe className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 text-sm leading-tight">{record.donorName}</h4>
+                    <p className="text-[10px] text-slate-400 font-black uppercase mt-1">
+                      {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })} • {record.paymentMethod}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-black text-emerald-600 text-sm tracking-tight">Rs. {record.amount.toLocaleString()}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
+      {/* COLLECTION MODAL */}
       {pendingSelection && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-xs rounded-[32px] shadow-2xl p-6 text-center">
-            <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs mb-6">Confirm Collection</h3>
-            <div className="mb-6 p-4 bg-slate-50 rounded-2xl">
-               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Receivable</p>
-               <p className="text-2xl font-black text-slate-900">Rs. {getDonorBalance(pendingSelection).toLocaleString()}</p>
+        <div className="fixed inset-0 z-[5000] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 animate-in slide-in-from-bottom duration-300">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{pendingSelection.name}</h3>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{pendingSelection.phone}</p>
+              </div>
+              <button onClick={() => setPendingSelection(null)} className="p-2 bg-slate-50 rounded-full text-slate-300 hover:text-red-500 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <button onClick={() => setSelectedPaymentMethod('CASH')} className={`p-4 rounded-2xl border-2 ${selectedPaymentMethod === 'CASH' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100'}`}><Wallet className="w-8 h-8 mx-auto mb-2 text-emerald-600" /><span className="text-[10px] font-black uppercase">Cash</span></button>
-              <button onClick={() => setSelectedPaymentMethod('ONLINE')} className={`p-4 rounded-2xl border-2 ${selectedPaymentMethod === 'ONLINE' ? 'border-blue-500 bg-blue-50' : 'border-slate-100'}`}><Globe className="w-8 h-8 mx-auto mb-2 text-blue-600" /><span className="text-[10px] font-black uppercase">Online</span></button>
+
+            <div className="bg-slate-50 p-6 rounded-3xl mb-6">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Receivable</p>
+              <p className="text-3xl font-black text-slate-900 tracking-tighter">Rs. {pendingSelection.totalBalance.toLocaleString()}</p>
             </div>
-            <button onClick={handleCollect} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl">Confirm</button>
-            <button onClick={() => setPendingSelection(null)} className="mt-2 w-full py-4 text-slate-400 font-black uppercase text-xs">Cancel</button>
+
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setSelectedPaymentMethod('CASH'); }}
+                className={`py-4 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all ${selectedPaymentMethod === 'CASH' ? 'border-red-600 bg-red-50 text-red-600' : 'border-slate-100 bg-white text-slate-400'}`}
+              >
+                <Wallet className="w-5 h-5" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Cash</span>
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setSelectedPaymentMethod('ONLINE'); }}
+                className={`py-4 rounded-2xl flex flex-col items-center gap-2 border-2 transition-all ${selectedPaymentMethod === 'ONLINE' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-100 bg-white text-slate-400'}`}
+              >
+                <Globe className="w-5 h-5" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Online</span>
+              </button>
+            </div>
+
+            <button onClick={(e) => { e.stopPropagation(); handleCollect(); }} className="w-full py-5 bg-red-600 text-white rounded-[22px] font-black uppercase tracking-widest shadow-xl shadow-red-100 active:scale-95 transition-all">
+              Mark as Collected
+            </button>
           </div>
         </div>
       )}
 
+      {/* SUCCESS MODAL */}
       {isSuccessModalOpen && lastProcessedDonor && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl overflow-hidden text-center p-8">
-            <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6"><Heart className="w-10 h-10 text-white animate-pulse" /></div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">Received!</h2>
-            <p className="font-bold text-slate-500 mb-8">Rs. {lastProcessedDonor.amount.toLocaleString()} received successfully.</p>
-            <button onClick={() => sendWhatsAppReceipt(lastProcessedDonor.name, '', lastProcessedDonor.amount)} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-sm flex items-center justify-center gap-3 mb-3"><MessageSquare className="w-5 h-5" /> Send Receipt</button>
-            <button onClick={() => setIsSuccessModalOpen(false)} className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-sm">Dismiss</button>
+        <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-slate-900/80 backdrop-blur-xl p-6">
+          <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl p-10 text-center animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Heart className="w-10 h-10 text-emerald-600 fill-emerald-600" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Done!</h3>
+            <p className="text-slate-400 font-bold text-sm mb-8 leading-relaxed">
+              Collection of <span className="text-slate-900 font-black">Rs. {lastProcessedDonor.amount.toLocaleString()}</span> from <span className="text-slate-900 font-black">{lastProcessedDonor.name}</span> has been recorded.
+            </p>
+            <div className="space-y-3">
+              <button 
+                onClick={() => { sendWhatsAppReceipt(lastProcessedDonor.name, lastProcessedDonor.phone, lastProcessedDonor.amount); setIsSuccessModalOpen(false); }}
+                className="w-full py-4 bg-[#25D366] text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-lg"
+              >
+                <MessageSquare className="w-4 h-4" /> Send WhatsApp Receipt
+              </button>
+              <button 
+                onClick={() => setIsSuccessModalOpen(false)}
+                className="w-full py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-xs"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SETTINGS MODAL */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black text-slate-900 uppercase tracking-widest">Settings</h3>
+              <button onClick={() => setIsSettingsOpen(false)}><X className="w-5 h-5 text-slate-300"/></button>
+            </div>
+            <div className="space-y-4 mb-8">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">New Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <input 
+                    type={showPass ? "text" : "password"} 
+                    className="w-full pl-11 pr-11 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-200 transition-all" 
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)} 
+                  />
+                  <button onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">
+                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <input 
+                    type={showPass ? "text" : "password"} 
+                    className="w-full pl-11 pr-11 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-200 transition-all" 
+                    value={confirmPassword} 
+                    onChange={e => setConfirmPassword(e.target.value)} 
+                  />
+                </div>
+              </div>
+            </div>
+            <button onClick={handleUpdatePassword} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-sm shadow-xl">Update Password</button>
           </div>
         </div>
       )}
