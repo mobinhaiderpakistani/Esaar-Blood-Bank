@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { AppState, Donor, User, UserRole, DonationRecord } from '../types';
 import { 
   Users, 
@@ -23,7 +23,13 @@ import {
   X,
   Calendar,
   Wallet,
-  Globe
+  Globe,
+  Download,
+  Upload,
+  Table as TableIcon,
+  Save,
+  ArrowLeft,
+  Info
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -45,19 +51,18 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COLLECTED' | 'PENDING'>('ALL');
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Data Explorer / Editor State
+  const [selectedTable, setSelectedTable] = useState<string>('donors');
+  const [editingRecord, setEditingRecord] = useState<any | null>(null);
+  const [editedData, setEditedData] = useState<any | null>(null);
+
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [editingCollector, setEditingCollector] = useState<User | null>(null);
   const [selectedDonorForLedger, setSelectedDonorForLedger] = useState<Donor | null>(null);
   const [showAddDonorModal, setShowAddDonorModal] = useState(false);
   const [showAddCollectorModal, setShowAddCollectorModal] = useState(false);
 
-  const [newDonorData, setNewDonorData] = useState({
-    name: '', phone: '', address: '', city: state.cities[0] || 'Lahore', monthlyAmount: 1000, assignedCollectorId: '', referredBy: ''
-  });
-
-  const [newCollectorData, setNewCollectorData] = useState({
-    name: '', phone: '', username: '', password: '123', city: state.cities[0] || 'Lahore'
-  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isSuperAdmin = state.currentUser?.role === UserRole.SUPER_ADMIN;
   const SYSTEM_START_DATE_STR = "2026-01";
@@ -71,6 +76,13 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
   const historyRaw = state.donationHistory || [];
   const citiesRaw = state.cities || [];
   const collectorsRaw = state.collectors || [];
+
+  const tables = [
+    { id: 'donors', name: 'Donors', icon: <Users className="w-4 h-4" />, data: state.donors },
+    { id: 'collectors', name: 'Collectors', icon: <UserCheck className="w-4 h-4" />, data: state.collectors },
+    { id: 'history', name: 'Donation History', icon: <History className="w-4 h-4" />, data: state.donationHistory },
+    { id: 'cities', name: 'Areas', icon: <Building2 className="w-4 h-4" />, data: state.cities },
+  ];
 
   const getDonorBalanceMetrics = (donor: Donor) => {
     const donorJoinMonthStr = (donor.joinDate || SYSTEM_START_DATE_STR).slice(0, 7);
@@ -137,6 +149,196 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     return cleanDate;
   };
 
+  const handleMasterReset = () => {
+    if (window.confirm("خطرہ: تمام ادائیگیوں کا ریکارڈ مٹ جائے گا اور سسٹم دوبارہ جنوری 2026 پر سیٹ ہو جائے گا۔")) {
+      setIsProcessing(true);
+      onUpdateState({ donationHistory: [], currentMonthKey: SYSTEM_START_DATE_STR });
+      setTimeout(() => { setIsProcessing(false); setActiveTab('dashboard'); }, 800);
+    }
+  };
+
+  const handleExport = () => {
+    const data = {
+      donors: state.donors,
+      collectors: state.collectors,
+      donationHistory: state.donationHistory,
+      cities: state.cities,
+      currentMonthKey: state.currentMonthKey
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    const now = new Date();
+    const datePart = now.toISOString().split('T')[0];
+    const timePart = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+    
+    link.download = `esaar_backup_${datePart}_${timePart}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (confirm("کیا آپ واقعی بیک اپ سے ڈیٹا ری سٹور کرنا چاہتے ہیں؟ موجودہ تمام ڈیٹا تبدیل ہو جائے گا۔")) {
+          onUpdateState(json);
+          alert("Data restored successfully!");
+        }
+      } catch (err) {
+        alert("Invalid backup file format.");
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const startEditingRecord = (record: any) => {
+    setEditingRecord(record);
+    setEditedData({ ...record });
+  };
+
+  const saveRecordEdits = () => {
+    if (!editedData || !editingRecord) return;
+    
+    let updatedList: any[] = [];
+    const updateKey = selectedTable === 'donors' ? 'donors' :
+                      selectedTable === 'collectors' ? 'collectors' :
+                      selectedTable === 'history' ? 'donationHistory' : null;
+
+    if (!updateKey) return;
+
+    updatedList = (state as any)[updateKey].map((item: any) => 
+      item.id === editingRecord.id ? editedData : item
+    );
+
+    onUpdateState({ [updateKey]: updatedList });
+    setEditingRecord(null);
+    setEditedData(null);
+    alert("Record updated successfully!");
+  };
+
+  const renderEditForm = () => {
+    if (!editedData) return null;
+    const keys = Object.keys(editedData);
+
+    return (
+      <div className="p-8 animate-in slide-in-from-right duration-300">
+        <div className="flex items-center justify-between mb-8">
+           <button onClick={() => setEditingRecord(null)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-black text-[10px] uppercase tracking-wider text-slate-500 transition-all">
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to List
+           </button>
+           <button onClick={saveRecordEdits} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-lg transition-all">
+              <Save className="w-3.5 h-3.5" /> Save Changes
+           </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {keys.map(key => {
+            const isId = key === 'id';
+            const val = editedData[key];
+            const type = typeof val;
+
+            return (
+              <div key={key} className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 block flex items-center gap-1">
+                  {key}
+                  {isId && <Info className="w-3 h-3 text-slate-300" />}
+                </label>
+                <input 
+                  type={type === 'number' ? 'number' : 'text'}
+                  disabled={isId}
+                  className={`w-full px-5 py-3.5 rounded-2xl font-bold text-sm outline-none transition-all ${
+                    isId ? 'bg-slate-50 text-slate-400 cursor-not-allowed border border-slate-100' : 'bg-slate-50 border border-transparent focus:bg-white focus:border-slate-200 text-slate-900'
+                  }`}
+                  value={val ?? ''}
+                  onChange={(e) => setEditedData({
+                    ...editedData,
+                    [key]: type === 'number' ? Number(e.target.value) : e.target.value
+                  })}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTableData = () => {
+    const activeTableData = tables.find(t => t.id === selectedTable)?.data || [];
+    if (activeTableData.length === 0) {
+      return <div className="flex flex-col items-center justify-center h-full text-slate-400 font-bold uppercase text-[10px] tracking-widest gap-4"><AlertCircle className="w-8 h-8 text-slate-200" /> No records found</div>;
+    }
+
+    if (selectedTable === 'cities') {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6">
+          {(activeTableData as string[]).map((city, idx) => (
+            <div key={idx} className="bg-slate-50 border border-slate-100 p-4 rounded-2xl font-black text-slate-700 text-xs">
+              {city}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    const keys = Object.keys(activeTableData[0]);
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-20">
+            <tr>
+              <th className="px-6 py-4 font-black uppercase text-[9px] text-slate-400 tracking-wider">Action</th>
+              {keys.map(key => (
+                <th key={key} className="px-6 py-4 font-black uppercase text-[9px] text-slate-400 tracking-wider whitespace-nowrap">{key}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {activeTableData.map((row: any, i: number) => (
+              <tr key={i} className="hover:bg-slate-50 transition-colors group">
+                <td className="px-6 py-4">
+                  <button 
+                    onClick={() => startEditingRecord(row)}
+                    className="p-2 bg-white border border-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 hover:border-emerald-100 hover:shadow-sm transition-all"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                </td>
+                {keys.map(key => (
+                  <td key={key} className="px-6 py-4 font-medium text-slate-600 truncate max-w-[200px]">
+                    {typeof row[key] === 'object' ? JSON.stringify(row[key]) : String(row[key] ?? 'N/A')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const handleNextMonth = () => {
+    let nextY = yearNum;
+    let nextM = monthNum + 1;
+    if (nextM > 12) { nextM = 1; nextY++; }
+    onUpdateState({ currentMonthKey: `${nextY}-${String(nextM).padStart(2, '0')}` });
+  };
+
+  const handlePrevMonth = () => {
+    let prevY = yearNum;
+    let prevM = monthNum - 1;
+    if (prevM < 1) { prevM = 12; prevY--; }
+    const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
+    if (prevKey >= SYSTEM_START_DATE_STR) onUpdateState({ currentMonthKey: prevKey });
+  };
+
   const cityFiltered = selectedCityFilter === 'All' ? donorsListRaw : donorsListRaw.filter(d => d.city === selectedCityFilter);
   const donorsList = cityFiltered.filter(d => 
     (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -189,29 +391,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
     })
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
 
-  const handleMasterReset = () => {
-    if (window.confirm("خطرہ: تمام ادائیگیوں کا ریکارڈ مٹ جائے گا اور سسٹم دوبارہ جنوری 2026 پر سیٹ ہو جائے گا۔")) {
-      setIsProcessing(true);
-      onUpdateState({ donationHistory: [], currentMonthKey: SYSTEM_START_DATE_STR });
-      setTimeout(() => { setIsProcessing(false); setActiveTab('dashboard'); }, 800);
-    }
-  };
-
-  const handleNextMonth = () => {
-    let nextY = yearNum;
-    let nextM = monthNum + 1;
-    if (nextM > 12) { nextM = 1; nextY++; }
-    onUpdateState({ currentMonthKey: `${nextY}-${String(nextM).padStart(2, '0')}` });
-  };
-
-  const handlePrevMonth = () => {
-    let prevY = yearNum;
-    let prevM = monthNum - 1;
-    if (prevM < 1) { prevM = 12; prevY--; }
-    const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
-    if (prevKey >= SYSTEM_START_DATE_STR) onUpdateState({ currentMonthKey: prevKey });
-  };
-
   if (showAreaManagement) {
     return (
       <div className="p-8 animate-in fade-in duration-300">
@@ -234,6 +413,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
 
   return (
     <div className="p-4 md:p-8 space-y-6 min-h-screen pb-24 relative">
+      <input type="file" ref={fileInputRef} onChange={handleImport} accept=".json" className="hidden" />
       {isProcessing && (
         <div className="fixed inset-0 z-[5000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center text-white">
           <Loader2 className="w-16 h-16 animate-spin text-red-500 mb-6" />
@@ -501,7 +681,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
               <tbody className="divide-y divide-slate-100">
                 {comprehensiveHistory.map(row => {
                   const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
-                  // Modified logic: Only show collector/mode if donation is collected
                   const displayCollector = row.status === 'COLLECTED' ? (record?.collectorName || '---') : '---';
                   const displayMode = row.status === 'COLLECTED' ? (record?.paymentMethod || '---') : '---';
 
@@ -524,16 +703,86 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
       )}
 
       {activeTab === 'maintenance' && isSuperAdmin && (
-        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10 text-center">
-             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><RefreshCw className="w-10 h-10 text-red-600" /></div>
-             <h2 className="text-2xl font-black mb-4 uppercase">Master Reset</h2>
-             <p className="text-slate-400 text-sm mb-10 font-bold max-w-md mx-auto">خطرہ: تمام ادائیگیوں کا ریکارڈ مٹ جائے گا اور سسٹم دوبارہ جنوری 2026 پر سیٹ ہو جائے گا۔</p>
-             <button onClick={handleMasterReset} className="px-12 py-6 bg-red-600 text-white rounded-[26px] font-black uppercase shadow-xl">Reset to January 2026</button>
+        <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-500">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><RefreshCw className="w-8 h-8 text-red-600" /></div>
+                <h3 className="text-lg font-black mb-2 uppercase">Master Reset</h3>
+                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Reset all collections to Jan 2026</p>
+                <button onClick={handleMasterReset} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Reset System</button>
+              </div>
+
+              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4"><Download className="w-8 h-8 text-blue-600" /></div>
+                <h3 className="text-lg font-black mb-2 uppercase">Backup Data</h3>
+                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Download everything as JSON file</p>
+                <button onClick={handleExport} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Export Backup</button>
+              </div>
+
+              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4"><Upload className="w-8 h-8 text-emerald-600" /></div>
+                <h3 className="text-lg font-black mb-2 uppercase">Restore Data</h3>
+                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Upload JSON file to restore</p>
+                <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Import Backup</button>
+              </div>
+           </div>
+
+           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col h-[650px]">
+              <div className="p-8 border-b border-slate-100 flex items-center gap-4">
+                 <div className="p-3 bg-slate-50 rounded-2xl text-slate-400"><TableIcon className="w-6 h-6" /></div>
+                 <div className="flex-1">
+                    <h3 className="text-xl font-black uppercase">Live Data Editor</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select, view, and manually edit records</p>
+                 </div>
+                 {editingRecord && (
+                    <div className="flex items-center gap-2 animate-in fade-in zoom-in">
+                       <span className="px-3 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded-lg">Manual Edit Mode</span>
+                    </div>
+                 )}
+              </div>
+              <div className="flex-1 flex overflow-hidden">
+                 {/* Left Sidebar: Table List */}
+                 <div className="w-64 border-r border-slate-100 bg-slate-50/50 flex flex-col p-4 gap-2 overflow-y-auto">
+                    {tables.map(table => (
+                       <button
+                          key={table.id}
+                          onClick={() => { setSelectedTable(table.id); setEditingRecord(null); }}
+                          className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-wider ${
+                             selectedTable === table.id 
+                                ? 'bg-slate-900 text-white shadow-xl translate-x-1' 
+                                : 'bg-white text-slate-400 hover:bg-slate-100'
+                          }`}
+                       >
+                          {table.icon}
+                          <span className="flex-1 text-left">{table.name}</span>
+                          <span className={`text-[8px] px-2 py-0.5 rounded-full ${selectedTable === table.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                             {Array.isArray(table.data) ? table.data.length : 0}
+                          </span>
+                       </button>
+                    ))}
+                 </div>
+
+                 {/* Right Side: Data View or Edit Form */}
+                 <div className="flex-1 bg-white overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm z-10">
+                       <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest">
+                          {editingRecord ? `Editing Entry: ${editingRecord.name || editingRecord.id}` : `Viewing Table: ${tables.find(t => t.id === selectedTable)?.name}`}
+                       </h4>
+                       <div className="text-[9px] font-black text-emerald-500 flex items-center gap-2">
+                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                          LIVE CONNECTION
+                       </div>
+                    </div>
+                    <div className="flex-1 overflow-auto custom-scrollbar">
+                       {editingRecord ? renderEditForm() : renderTableData()}
+                    </div>
+                 </div>
+              </div>
            </div>
         </div>
       )}
 
+      {/* Modals */}
       {editingDonor && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto">
@@ -553,7 +802,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState }) => {
 
       {editingCollector && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl p-10">
+          <div className="bg-white w-full max-lg rounded-[40px] shadow-2xl p-10">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black uppercase">Edit Agent</h3>
               <button onClick={() => setEditingCollector(null)} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button>
