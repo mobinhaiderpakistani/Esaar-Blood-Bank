@@ -60,8 +60,10 @@ const CollectorPanel: React.FC<Props> = ({ user, state, onUpdateState, activeTab
     
     const donorHistory = state.donationHistory.filter(h => h.donorId === donor.id);
     const totalExpectedCumulative = totalMonthsCount * (donor.monthlyAmount || 0);
+    
+    // Fix: Only count payments made up to and including activeMonthKey
     const validPaidCumulative = donorHistory
-      .filter(h => h.date.slice(0, 7) >= effectiveStartStr)
+      .filter(h => h.date.slice(0, 7) >= effectiveStartStr && h.date.slice(0, 7) <= activeMonthKey)
       .reduce((sum, h) => sum + (h.amount || 0), 0);
     
     return Math.max(0, totalExpectedCumulative - validPaidCumulative);

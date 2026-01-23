@@ -129,8 +129,10 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     
     const donorHistory = historyRaw.filter(h => h.donorId === donor.id);
     const totalExpectedCumulative = totalMonthsCount * (donor.monthlyAmount || 0);
+    
+    // Logic Fix: Only count payments made up to and including the activeMonthKey
     const validPaidCumulative = donorHistory
-      .filter(h => h.date.slice(0, 7) >= effectiveStartStr)
+      .filter(h => h.date.slice(0, 7) >= effectiveStartStr && h.date.slice(0, 7) <= activeMonthKey)
       .reduce((sum, h) => sum + (h.amount || 0), 0);
     
     const totalDue = Math.max(0, totalExpectedCumulative - validPaidCumulative);
@@ -846,7 +848,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                         {pieDataStatus.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                      </Pie>
                      <Tooltip />
-                     <Legend verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '9px', fontWeight: 900, textTransform: 'uppercase'}} />
+                     <Legend verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '9px', fontWeight: '900', textTransform: 'uppercase'}} />
                    </PieChart>
                  </ResponsiveContainer>
               </div>
@@ -858,7 +860,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                         {pieDataMethod.map((_, i) => <Cell key={i} fill={COLORS[(i+2) % COLORS.length]} />)}
                      </Pie>
                      <Tooltip />
-                     <Legend verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '9px', fontWeight: 900, textTransform: 'uppercase'}} />
+                     <Legend verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '9px', fontWeight: '900', textTransform: 'uppercase'}} />
                    </PieChart>
                  </ResponsiveContainer>
               </div>
@@ -1380,7 +1382,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       {/* EDIT COLLECTOR MODAL */}
       {editingCollector && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
             <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Edit Agent</h3><button onClick={() => setEditingCollector(null)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
             <div className="space-y-5 mb-8">
               <InputGroup label="Full Name" value={editingCollector.name} onChange={(v: string) => setEditingCollector({...editingCollector, name: v})} />
