@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { AppState, Donor, User, UserRole, DonationRecord, LogEntry } from '../types';
 import { 
@@ -199,7 +198,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        if (confirm("کیا آپ واقعی بیک اپ سے ڈیٹا ری سٹور کرنا چاہتے ہیں؟ موجودہ تمام ڈیٹا تبدیل ہو جائے گا۔")) {
+        if (confirm("کیا آپ واقعی بیک آپ سے ڈیٹا ری سٹور کرنا چاہتے ہیں؟ موجودہ تمام ڈیٹا تبدیل ہو جائے گا۔")) {
           const updatedLogs = addLog("Restored Database from Backup File", "WARNING");
           onUpdateState({ ...json, logs: updatedLogs });
           alert("Data restored successfully!");
@@ -366,8 +365,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   );
 
   const totalTarget = cityFiltered.reduce((sum, d) => sum + (d.monthlyAmount || 0), 0);
+  const historyTotalSum = historyRaw.filter(h => h.date.startsWith(activeMonthKey)).reduce((sum, h) => sum + (h.amount || 0), 0);
   const historyList = historyRaw.filter(h => h.date.startsWith(activeMonthKey));
-  const historyTotalSum = historyList.reduce((sum, h) => sum + (h.amount || 0), 0);
   const cashSum = historyList.filter(h => h.paymentMethod === 'CASH').reduce((sum, h) => sum + h.amount, 0);
   const onlineSum = historyList.filter(h => h.paymentMethod === 'ONLINE').reduce((sum, h) => sum + h.amount, 0);
   
@@ -479,7 +478,175 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     }
   };
 
-  const handlePrintReport = () => window.print();
+  const handlePrintReport = () => {
+    const printWindow = window.open('', '_blank', 'width=1100,height=850');
+    if (!printWindow) {
+      alert("Please allow popups to print the report.");
+      return;
+    }
+
+    const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Esaar Blood Bank - Status Board ${monthName}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+            .header { text-align: center; border-bottom: 3px solid #dc2626; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { font-weight: 900; font-size: 32px; color: #dc2626; margin: 0; text-transform: uppercase; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #64748b; }
+            td { border: 1px solid #e2e8f0; padding: 12px; font-size: 11px; font-weight: 600; }
+            .total-row { background: #0f172a; color: white; font-weight: 900; }
+            .total-row td { padding: 15px 12px; font-size: 13px; }
+            .status { font-weight: 900; font-size: 9px; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+            .paid { background: #dcfce7; color: #15803d; }
+            .pending { background: #fee2e2; color: #b91c1c; }
+            .no-print { text-align: center; margin-bottom: 20px; }
+            .btn { background: #dc2626; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; font-family: inherit; font-size: 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <button class="btn" onclick="window.print()">Confirm & Print Document</button>
+          </div>
+          <div class="header">
+            <h1>Esaar Blood Bank</h1>
+            <p style="font-weight: 900; margin: 5px 0; font-size: 16px;">STATUS BOARD REPORT - ${monthName}</p>
+            <p style="font-size: 12px; color: #64748b; font-weight: 700;">AREA: ${selectedCityFilter} | FILTER: ${statusFilter}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Donor Information</th>
+                <th>Arrears</th>
+                <th>Monthly</th>
+                <th>Status</th>
+                <th>Collector</th>
+                <th>Mode</th>
+                <th style="text-align: right;">Net Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${comprehensiveHistory.map(row => {
+                const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
+                return `
+                <tr>
+                  <td>
+                    <div style="font-weight: 900; font-size: 12px;">${row.name}</div>
+                    <div style="font-size: 9px; color: #64748b; font-weight: 700;">${row.phone} • ${row.city}</div>
+                  </td>
+                  <td>Rs. ${row.arrears.toLocaleString()}</td>
+                  <td>Rs. ${row.monthlyAmount.toLocaleString()}</td>
+                  <td><span class="status ${row.status === 'COLLECTED' ? 'paid' : 'pending'}">${row.status}</span></td>
+                  <td style="font-size: 10px;">${row.status === 'COLLECTED' ? (record?.collectorName || '---') : '---'}</td>
+                  <td style="font-size: 10px;">${row.status === 'COLLECTED' ? (record?.paymentMethod || '---') : '---'}</td>
+                  <td style="text-align: right; font-weight: 900; font-size: 12px;">Rs. ${row.totalDue.toLocaleString()}</td>
+                </tr>
+              `}).join('')}
+            </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td>GRAND TOTALS</td>
+                <td>Rs. ${historyTotals.arrears.toLocaleString()}</td>
+                <td>Rs. ${historyTotals.monthly.toLocaleString()}</td>
+                <td colspan="3" style="text-align: right; opacity: 0.8; font-size: 10px;">TOTAL NET RECEIVABLE:</td>
+                <td style="text-align: right;">Rs. ${historyTotals.netDue.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div style="margin-top: 40px; font-size: 10px; font-weight: 700; color: #94a3b8; display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+            <span>SYSTEM GENERATED REPORT • ESAAR CLOUD PLATFORM</span>
+            <span>GENERATED ON: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString()}</span>
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(reportHtml);
+    printWindow.document.close();
+  };
+
+  const handlePrintLedger = (donor: Donor) => {
+    const donorHistory = historyRaw.filter(h => h.donorId === donor.id).sort((a,b) => b.date.localeCompare(a.date));
+    const totalPaid = donorHistory.reduce((s, h) => s + h.amount, 0);
+    
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    if (!printWindow) return;
+
+    const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Donor Ledger - ${donor.name}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+            .header { border-bottom: 3px solid #dc2626; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { font-weight: 900; font-size: 28px; color: #dc2626; margin: 0; text-transform: uppercase; }
+            .donor-box { display: flex; gap: 20px; margin-bottom: 30px; }
+            .info-box { flex: 1; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+            .info-box label { display: block; font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
+            .info-box strong { font-size: 20px; color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+            td { border: 1px solid #e2e8f0; padding: 12px; font-size: 12px; font-weight: 600; }
+            .no-print { text-align: center; margin-bottom: 20px; }
+            .btn { background: #0f172a; color: white; padding: 12px 30px; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; font-family: inherit; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <button class="btn" onclick="window.print()">Print Ledger Document</button>
+          </div>
+          <div class="header">
+            <h1>Esaar Blood Bank</h1>
+            <p style="font-weight: 900; margin: 5px 0; font-size: 14px; color: #475569;">OFFICIAL DONATION STATEMENT</p>
+          </div>
+          <div class="donor-box">
+            <div class="info-box">
+              <label>Donor Identity</label>
+              <strong>${donor.name}</strong>
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px;">${donor.phone} • ${donor.city}</div>
+            </div>
+            <div class="info-box" style="text-align: right;">
+              <label>Lifetime Contributions</label>
+              <strong style="color: #10b981;">Rs. ${totalPaid.toLocaleString()}</strong>
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px;">Joined: ${formatDateToDMY(donor.joinDate)}</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Transaction Date</th>
+                <th>Amount Received</th>
+                <th>Payment Method</th>
+                <th>Collection Agent</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${donorHistory.map(h => `
+                <tr>
+                  <td>${new Date(h.date).toLocaleDateString('en-GB')}</td>
+                  <td style="font-weight: 900; color: #15803d;">Rs. ${h.amount.toLocaleString()}</td>
+                  <td style="font-size: 10px;">${h.paymentMethod}</td>
+                  <td style="font-size: 10px;">${h.collectorName}</td>
+                </tr>
+              `).join('')}
+              ${donorHistory.length === 0 ? '<tr><td colspan="4" style="text-align: center; padding: 40px; color: #94a3b8; font-weight: 900;">NO DONATION RECORDS FOUND</td></tr>' : ''}
+            </tbody>
+          </table>
+          <div style="margin-top: 60px; border-top: 1px dotted #cbd5e1; padding-top: 20px; text-align: center; font-size: 9px; color: #94a3b8; font-weight: 700;">
+            THIS IS A SYSTEM GENERATED STATEMENT • ESAAR BLOOD BANK CLOUD INFRASTRUCTURE
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(reportHtml);
+    printWindow.document.close();
+  };
 
   const handleDownloadPDF = () => {
     const element = document.querySelector('table');
@@ -824,19 +991,24 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
           <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-4">
                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Status Board ({monthName})</h2>
-               <div className="flex items-center gap-2">
-                 <button onClick={handlePrintReport} title="Print Report" className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg">
-                   <Printer className="w-4 h-4" />
+               <div className="flex items-center gap-2 no-print">
+                 <button 
+                  type="button" 
+                  onClick={handlePrintReport} 
+                  title="Print Report" 
+                  className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg"
+                 >
+                   <Printer className="w-4 h-4 pointer-events-none" />
                  </button>
-                 <button onClick={handleDownloadPDF} title="Export to PDF File" className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg">
-                   <FileDown className="w-4 h-4" />
+                 <button type="button" onClick={handleDownloadPDF} title="Export to PDF File" className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg">
+                   <FileDown className="w-4 h-4 pointer-events-none" />
                  </button>
-                 <button onClick={handleWhatsAppTextReport} title="WhatsApp Text Report" className="p-3 bg-emerald-50 text-emerald-600 hover:bg-[#25D366] hover:text-white rounded-2xl transition-all border border-emerald-100 hover:shadow-lg">
-                   <WhatsAppIcon className="w-4 h-4" />
+                 <button type="button" onClick={handleWhatsAppTextReport} title="WhatsApp Text Report" className="p-3 bg-emerald-50 text-emerald-600 hover:bg-[#25D366] hover:text-white rounded-2xl transition-all border border-emerald-100 hover:shadow-lg">
+                   <WhatsAppIcon className="w-4 h-4 pointer-events-none" />
                  </button>
                </div>
             </div>
-            <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100 no-print">
               <button onClick={() => setStatusFilter('ALL')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'ALL' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400'}`}>All</button>
               <button onClick={() => setStatusFilter('COLLECTED')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'COLLECTED' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400'}`}>Paid</button>
               <button onClick={() => setStatusFilter('PENDING')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${statusFilter === 'PENDING' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400'}`}>Pending</button>
@@ -891,7 +1063,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 })}
               </tbody>
               {/* Grand Total Row */}
-              <tfoot className="bg-slate-900 text-white no-print">
+              <tfoot className="bg-slate-900 text-white">
                 <tr className="border-t-4 border-white">
                   <td className="px-10 py-6 font-black uppercase text-xs tracking-widest">Grand Total</td>
                   <td className="px-10 py-6 font-black text-sm">Rs. {historyTotals.arrears.toLocaleString()}</td>
@@ -1139,8 +1311,12 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               </div>
             </div>
             <div className="p-8 border-t border-slate-100 bg-slate-50/30">
-               <button onClick={() => window.print()} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all">
-                  <Printer className="w-4 h-4" /> Print Ledger
+               <button 
+                type="button" 
+                onClick={() => handlePrintLedger(selectedDonorForLedger)} 
+                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-xl hover:bg-black transition-all"
+               >
+                  <Printer className="w-4 h-4 pointer-events-none" /> Print Ledger
                </button>
             </div>
           </div>
