@@ -1,4 +1,5 @@
 
+
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
@@ -60,4 +61,6 @@ export interface AppState {
   currentMonthKey: string;
   adminPassword?: string;
   superAdminPassword?: string;
+  // Fix: Adding _refresh to AppState to allow triggering re-renders via onUpdateState
+  _refresh?: number;
 }

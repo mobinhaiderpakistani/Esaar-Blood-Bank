@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { User, UserRole } from '../types';
 import { LogOut, Droplets, User as UserIcon, Settings, CloudDownload } from 'lucide-react';
@@ -24,7 +25,7 @@ const DashboardHeader: React.FC<Props> = ({ user, onLogout, onProfileClick, onBa
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 Cloud Live
               </div>
-              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">v3.7.2</span>
+              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">v3.7.6</span>
             </div>
           </div>
         </div>

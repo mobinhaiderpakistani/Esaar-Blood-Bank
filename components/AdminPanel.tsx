@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppState, Donor, User, UserRole, DonationRecord, LogEntry } from '../types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from '../constants';
 import { 
@@ -15,6 +15,9 @@ import {
   Trash2,
   Settings,
   ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   UserPlus,
   AlertCircle,
   Database,
@@ -37,7 +40,8 @@ import {
   FileDown,
   Activity,
   ClipboardList,
-  RotateCcw
+  RotateCcw,
+  RefreshCcw
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -90,6 +94,11 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COLLECTED' | 'PENDING'>('ALL');
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Pagination State
+  const [donorPage, setDonorPage] = useState(1);
+  const [statusBoardPage, setStatusBoardPage] = useState(1);
+  const recordsPerPage = 15;
+
   const [editingRecord, setEditingRecord] = useState<any | null>(null);
   const [editedData, setEditedData] = useState<any | null>(null);
 
@@ -123,6 +132,15 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const collectorsRaw = state.collectors || [];
   const logsRaw = state.logs || [];
 
+  // Reset page when search or filters change
+  useEffect(() => {
+    setDonorPage(1);
+  }, [searchTerm, selectedCityFilter, activeTab]);
+
+  useEffect(() => {
+    setStatusBoardPage(1);
+  }, [statusFilter, selectedCityFilter, activeTab]);
+
   const addLog = (action: string, type: LogEntry['type'] = 'INFO') => {
     const newLog: LogEntry = {
       id: Math.random().toString(36).substr(2, 9),
@@ -132,7 +150,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       timestamp: new Date().toISOString(),
       type
     };
-    return [newLog, ...logsRaw.slice(0, 99)]; // Keep last 100 logs
+    return [newLog, ...logsRaw.slice(0, 99)]; 
   };
 
   const tables = [
@@ -213,25 +231,33 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       setIsProcessing(true);
       const updatedLogs = addLog("Performed Master Reset (Wiped All Payments)", "DANGER");
       onUpdateState({ donationHistory: [], currentMonthKey: SYSTEM_START_DATE_STR, logs: updatedLogs });
-      setTimeout(() => { setIsProcessing(false); setActiveTab('dashboard'); }, 800);
+      setTimeout(() => { setIsProcessing(false); setActiveTab('dashboard'); }, 1500);
     }
   };
 
-  const handleRestoreInitialData = () => {
+  const handleRestoreInitialData = async () => {
     if (window.confirm("کیا آپ واقعی تمام ڈونرز کو ان کی اصل حالت (Default) پر بحال کرنا چاہتے ہیں؟ موجودہ تمام ڈونرز کی فہرست تبدیل ہو جائے گی۔")) {
       setIsProcessing(true);
-      const updatedLogs = addLog("Restored System Default Donors and Collectors", "WARNING");
-      onUpdateState({ 
-        donors: INITIAL_DONORS, 
-        collectors: INITIAL_COLLECTORS, 
-        cities: CITIES,
-        logs: updatedLogs 
-      });
-      setTimeout(() => { 
-        setIsProcessing(false); 
-        setActiveTab('donors');
-        alert("System defaults restored!");
-      }, 800);
+      setSearchTerm('');
+      setSelectedCityFilter('All');
+      const updatedLogs = addLog(`Restored System Defaults (${INITIAL_DONORS.length} donors)`, "WARNING");
+      try {
+        await onUpdateState({ 
+          donors: INITIAL_DONORS, 
+          collectors: INITIAL_COLLECTORS, 
+          cities: CITIES,
+          logs: updatedLogs,
+          donationHistory: []
+        });
+        setTimeout(() => { 
+          setIsProcessing(false); 
+          setActiveTab('donors');
+          alert(`Success: ${INITIAL_DONORS.length} donors loaded and synced with cloud!`);
+        }, 2000);
+      } catch (e) {
+        setIsProcessing(false);
+        alert("Sync Error: Could not restore defaults. Please check your internet.");
+      }
     }
   };
 
@@ -262,18 +288,14 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 
   const saveRecordEdits = () => {
     if (!editedData || !editingRecord) return;
-    
     let updatedList: any[] = [];
     const updateKey = selectedTable === 'donors' ? 'donors' :
                       selectedTable === 'collectors' ? 'collectors' :
                       selectedTable === 'history' ? 'donationHistory' : null;
-
     if (!updateKey) return;
-
     updatedList = (state as any)[updateKey].map((item: any) => 
       item.id === editingRecord.id ? editedData : item
     );
-
     const updatedLogs = addLog(`Manually edited a record in ${selectedTable} table`, "WARNING");
     onUpdateState({ [updateKey]: updatedList, logs: updatedLogs });
     setEditingRecord(null);
@@ -284,7 +306,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const renderEditForm = () => {
     if (!editedData) return null;
     const keys = Object.keys(editedData);
-
     return (
       <div className="p-8 animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between mb-8">
@@ -295,13 +316,11 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               <Save className="w-3.5 h-3.5" /> Save Changes
            </button>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {keys.map(key => {
             const isId = key === 'id';
             const val = editedData[key];
             const type = typeof val;
-
             return (
               <div key={key} className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 block flex items-center gap-1">
@@ -333,7 +352,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     if (activeTableData.length === 0) {
       return <div className="flex flex-col items-center justify-center h-full text-slate-400 font-bold uppercase text-[10px] tracking-widest gap-4"><AlertCircle className="w-8 h-8 text-slate-200" /> No records found</div>;
     }
-
     if (selectedTable === 'cities') {
       return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6">
@@ -345,7 +363,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       );
     }
-
     const keys = Object.keys(activeTableData[0]);
     return (
       <div className="overflow-x-auto">
@@ -402,11 +419,14 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   };
 
   const cityFiltered = selectedCityFilter === 'All' ? donorsListRaw : donorsListRaw.filter(d => d.city === selectedCityFilter);
-  const donorsList = cityFiltered.filter(d => 
+  const filteredDonors = cityFiltered.filter(d => 
     (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
     (d.phone || '').includes(searchTerm) ||
     (d.address || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalDonorPages = Math.ceil(filteredDonors.length / recordsPerPage);
+  const donorsList = filteredDonors.slice((donorPage - 1) * recordsPerPage, donorPage * recordsPerPage);
 
   const totalTarget = cityFiltered.reduce((sum, d) => sum + (d.monthlyAmount || 0), 0);
   const historyTotalSum = historyRaw.filter(h => h.date.startsWith(activeMonthKey)).reduce((sum, h) => sum + (h.amount || 0), 0);
@@ -422,7 +442,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     .map(city => {
       const cityDonors = donorsListRaw.filter(d => d.city === city);
       const target = cityDonors.reduce((sum, d) => sum + (d.monthlyAmount || 0), 0);
-      
       const collected = historyRaw
         .filter(h => h.date.startsWith(activeMonthKey))
         .reduce((sum, h) => {
@@ -430,7 +449,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
           if (donor && donor.city === city) return sum + h.amount;
           return sum;
         }, 0);
-        
       return { name: city, target, collected };
     })
     .filter(cityData => cityData.target > 0);
@@ -452,6 +470,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       return { ...donor, ...metrics, status };
     })
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
+
+  const totalStatusBoardPages = Math.ceil(comprehensiveHistory.length / recordsPerPage);
+  const historyListPaginated = comprehensiveHistory.slice((statusBoardPage - 1) * recordsPerPage, statusBoardPage * recordsPerPage);
 
   const historyTotals = comprehensiveHistory.reduce((acc, row) => {
     const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
@@ -523,11 +544,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank', 'width=1100,height=850');
-    if (!printWindow) {
-      alert("Please allow popups to print the report.");
-      return;
-    }
-
+    if (!printWindow) return;
     const reportHtml = `
       <!DOCTYPE html>
       <html>
@@ -613,11 +630,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 
   const handlePrintLedger = (donor: Donor) => {
     const donorHistory = historyRaw.filter(h => h.donorId === donor.id).sort((a,b) => b.date.localeCompare(a.date));
-    const totalPaid = donorHistory.reduce((s, h) => s + h.amount, 0);
-    
+    const totalPaid = donorHistory.reduce((s, h) => s + (h.amount || 0), 0);
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
     if (!printWindow) return;
-
     const reportHtml = `
       <!DOCTYPE html>
       <html>
@@ -702,16 +717,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     window.open(`https://wa.me/?text=${encodeURIComponent(summary)}`, '_blank');
   };
 
-  const roadmapMonths = Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1;
-    const key = `${yearNum}-${String(m).padStart(2, '0')}`;
-    const name = new Date(yearNum, i, 1).toLocaleString('default', { month: 'long' });
-    return { key, name, monthIndex: m };
-  });
-
-  const createdRoadmap = roadmapMonths.filter(m => m.key <= activeMonthKey);
-  const upcomingRoadmap = roadmapMonths.filter(m => m.key > activeMonthKey);
-
   if (showAreaManagement) {
     return (
       <div className="p-8 animate-in fade-in duration-300">
@@ -741,8 +746,8 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       {isProcessing && (
         <div className="fixed inset-0 z-[5000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center text-white text-center px-6">
           <Loader2 className="w-16 h-16 animate-spin text-red-500 mb-6" />
-          <h2 className="text-2xl font-black uppercase tracking-[0.2em] mb-2">Generating Report...</h2>
-          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Please wait a moment while we prepare your document.</p>
+          <h2 className="text-2xl font-black uppercase tracking-[0.2em] mb-2">Syncing Data...</h2>
+          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Please wait a moment while we rebuild your database.</p>
         </div>
       )}
 
@@ -800,7 +805,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <StatCard label="Monthly Target" value={`Rs. ${totalTarget.toLocaleString()}`} icon={<Building2 className="w-6 h-6"/>} color="text-blue-600" />
-            
             <StatCard 
               label={`Collected (${monthName})`} 
               value={`Rs. ${historyTotalSum.toLocaleString()}`} 
@@ -823,7 +827,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 </div>
               }
             />
-
             <StatCard 
               label="Current Deficit" 
               value={`Rs. ${totalCurrentDeficit.toLocaleString()}`} 
@@ -836,7 +839,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               }
             />
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col h-[500px]">
                <h3 className="text-sm font-black uppercase text-slate-400 mb-8 tracking-widest">Collection Target vs Received</h3>
@@ -856,7 +858,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                  </ResponsiveContainer>
                </div>
             </div>
-
             <div className="flex flex-col gap-6 h-[500px]">
               <div className="flex-1 bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center">
                  <h3 className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest text-center">Status</h3>
@@ -891,12 +892,12 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
           <div className="p-8 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight flex-1">
-              Donors <span className="text-sm text-blue-600 font-bold ml-1">({donorsList.length})</span>
+              Donors <span className="text-sm text-blue-600 font-bold ml-1">({filteredDonors.length} total)</span>
             </h2>
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input type="text" placeholder="Search..." className="pl-11 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <input type="text" placeholder="Search donors..." className="pl-11 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-100" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
               <button onClick={() => setShowAddDonorModal(true)} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg whitespace-nowrap"><Plus className="w-4 h-4" /> Add Donor</button>
             </div>
@@ -915,49 +916,104 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {donorsList.map(donor => {
-                  const totalCollected = historyRaw
-                    .filter(h => h.donorId === donor.id)
-                    .reduce((sum, h) => sum + h.amount, 0);
-
-                  return (
-                    <tr key={donor.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-10 py-8">
-                        <div className="font-black text-slate-900">{donor.name}</div>
-                        <div className="text-[10px] font-bold text-slate-400">{donor.phone}</div>
-                        <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5">{donor.city}</div>
-                        <div className="text-[10px] text-slate-400 font-medium italic mt-1">{donor.address}</div>
-                      </td>
-                      <td className="px-10 py-8">
-                        <div className="font-black text-slate-600 text-xs">{formatDateToDMY(donor.joinDate)}</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase">{calculateDuration(donor.joinDate)}</div>
-                      </td>
-                      <td className="px-10 py-8 font-bold text-xs text-slate-500">{donor.referredBy || 'Self'}</td>
-                      <td className="px-10 py-8">
-                        <div className="text-[10px] font-black text-slate-900 uppercase">
-                          {collectorsRaw.find(c => c.id === donor.assignedCollectorId)?.name || 'Unassigned'}
-                        </div>
-                      </td>
-                      <td className="px-10 py-8 font-black text-slate-600">Rs. {donor.monthlyAmount.toLocaleString()}</td>
-                      <td className="px-10 py-8 font-black text-emerald-600">Rs. {totalCollected.toLocaleString()}</td>
-                      <td className="px-10 py-8 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
-                          <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
-                          <button onClick={() => { 
-                            if(window.confirm('Delete Donor?')) {
-                              const updatedLogs = addLog(`Deleted donor record: ${donor.name}`, "DANGER");
-                              onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id), logs: updatedLogs });
-                            }
-                          }} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {donorsList.length > 0 ? (
+                  donorsList.map(donor => {
+                    const totalCollected = historyRaw
+                      .filter(h => h.donorId === donor.id)
+                      .reduce((sum, h) => sum + (h.amount || 0), 0);
+                    return (
+                      <tr key={donor.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-10 py-8">
+                          <div className="font-black text-slate-900">{donor.name}</div>
+                          <div className="text-[10px] font-bold text-slate-400">{donor.phone}</div>
+                          <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5">{donor.city}</div>
+                          <div className="text-[10px] text-slate-400 font-medium italic mt-1 truncate max-w-xs">{donor.address}</div>
+                        </td>
+                        <td className="px-10 py-8">
+                          <div className="font-black text-slate-600 text-xs">{formatDateToDMY(donor.joinDate)}</div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase">{calculateDuration(donor.joinDate)}</div>
+                        </td>
+                        <td className="px-10 py-8 font-bold text-xs text-slate-500">{donor.referredBy || 'Self'}</td>
+                        <td className="px-10 py-8">
+                          <div className="text-[10px] font-black text-slate-900 uppercase">
+                            {collectorsRaw.find(c => c.id === donor.assignedCollectorId)?.name || 'Unassigned'}
+                          </div>
+                        </td>
+                        <td className="px-10 py-8 font-black text-slate-600">Rs. {donor.monthlyAmount.toLocaleString()}</td>
+                        <td className="px-10 py-8 font-black text-emerald-600">Rs. {totalCollected.toLocaleString()}</td>
+                        <td className="px-10 py-8 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => setEditingDonor(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit2 className="w-4 h-4"/></button>
+                            <button onClick={() => setSelectedDonorForLedger(donor)} className="p-2.5 border border-slate-100 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><FileText className="w-4 h-4"/></button>
+                            <button onClick={() => { 
+                              if(window.confirm('Delete Donor?')) {
+                                const updatedLogs = addLog(`Deleted donor record: ${donor.name}`, "DANGER");
+                                onUpdateState({ donors: donorsListRaw.filter(d => d.id !== donor.id), logs: updatedLogs });
+                              }
+                            }} className="p-2.5 border border-slate-100 rounded-xl hover:bg-red-600 hover:text-white text-red-500 transition-all"><Trash2 className="w-4 h-4"/></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-10 py-20 text-center">
+                       <div className="flex flex-col items-center gap-4 text-slate-300">
+                          <Users className="w-12 h-12" />
+                          <p className="font-black uppercase tracking-widest text-[10px]">No donors found matching criteria.</p>
+                       </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+          {/* Donors Pagination UI */}
+          {totalDonorPages > 1 && (
+            <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Showing {Math.min(filteredDonors.length, (donorPage-1) * recordsPerPage + 1)}-{Math.min(filteredDonors.length, donorPage * recordsPerPage)} of {filteredDonors.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <button 
+                  disabled={donorPage === 1}
+                  onClick={() => setDonorPage(1)}
+                  className={`p-3 rounded-xl border transition-all ${donorPage === 1 ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button 
+                  disabled={donorPage === 1}
+                  onClick={() => setDonorPage(p => Math.max(1, p - 1))}
+                  className={`p-3 rounded-xl border transition-all ${donorPage === 1 ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="px-6 py-3 bg-white border border-slate-200 rounded-xl font-black text-xs text-slate-900 shadow-sm mx-1">
+                   Page {donorPage} of {totalDonorPages}
+                </div>
+                <button 
+                  disabled={donorPage === totalDonorPages}
+                  onClick={() => setDonorPage(p => Math.min(totalDonorPages, p + 1))}
+                  className={`p-3 rounded-xl border transition-all ${donorPage === totalDonorPages ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button 
+                  disabled={donorPage === totalDonorPages}
+                  onClick={() => setDonorPage(totalDonorPages)}
+                  className={`p-3 rounded-xl border transition-all ${donorPage === totalDonorPages ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1016,12 +1072,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
             <div className="flex items-center gap-4">
                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Status Board ({monthName})</h2>
                <div className="flex items-center gap-2 no-print">
-                 <button 
-                  type="button" 
-                  onClick={handlePrintReport} 
-                  title="Print Report" 
-                  className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg"
-                 >
+                 <button type="button" onClick={handlePrintReport} title="Print Report" className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all border border-slate-100 hover:shadow-lg">
                    <Printer className="w-4 h-4 pointer-events-none" />
                  </button>
                  <button type="button" onClick={handleDownloadPDF} title="Export to PDF File" className="p-3 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-2xl transition-all border border-blue-100 hover:shadow-lg">
@@ -1052,39 +1103,45 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {comprehensiveHistory.map(row => {
-                  const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
-                  const displayCollector = row.status === 'COLLECTED' ? (record?.collectorName || '---') : '---';
-                  const displayMode = row.status === 'COLLECTED' ? (record?.paymentMethod || '---') : '---';
-
-                  return (
-                    <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-10 py-6"><div className="font-black text-slate-900">{row.name}</div><div className="text-[10px] font-bold text-blue-600 uppercase">{row.city}</div></td>
-                      <td className="px-10 py-6 font-black text-slate-400">Rs. {row.arrears.toLocaleString()}</td>
-                      <td className="px-10 py-6 font-black text-slate-600">Rs. {row.monthlyAmount.toLocaleString()}</td>
-                      <td className="px-10 py-6">
-                        {row.status === 'COLLECTED' && record ? (
-                          <div className="flex flex-col gap-1.5 items-start">
-                            <span className="text-[11px] font-black text-slate-900 tracking-tight">Rs. {record.amount.toLocaleString()}</span>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest">
-                              COLLECTED
+                {historyListPaginated.length > 0 ? (
+                  historyListPaginated.map(row => {
+                    const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
+                    const displayCollector = row.status === 'COLLECTED' ? (record?.collectorName || '---') : '---';
+                    const displayMode = row.status === 'COLLECTED' ? (record?.paymentMethod || '---') : '---';
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-10 py-6"><div className="font-black text-slate-900">{row.name}</div><div className="text-[10px] font-bold text-blue-600 uppercase">{row.city}</div></td>
+                        <td className="px-10 py-6 font-black text-slate-400">Rs. {row.arrears.toLocaleString()}</td>
+                        <td className="px-10 py-6 font-black text-slate-600">Rs. {row.monthlyAmount.toLocaleString()}</td>
+                        <td className="px-10 py-6">
+                          {row.status === 'COLLECTED' && record ? (
+                            <div className="flex flex-col gap-1.5 items-start">
+                              <span className="text-[11px] font-black text-slate-900 tracking-tight">Rs. {record.amount.toLocaleString()}</span>
+                              <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[8px] font-black uppercase tracking-widest">COLLECTED</div>
+                              <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 leading-none opacity-90">
+                                {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </div>
                             </div>
-                            <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 leading-none opacity-90">
-                              {new Date(record.date).toLocaleDateString('en-GB')} • {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-2xl text-[9px] font-black uppercase">
-                            PENDING
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayCollector}</td>
-                      <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayMode}</td>
-                      <td className="px-10 py-6 text-right font-black text-lg">Rs. {row.totalDue.toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
+                          ) : (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-2xl text-[9px] font-black uppercase">PENDING</div>
+                          )}
+                        </td>
+                        <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayCollector}</td>
+                        <td className="px-10 py-6 text-[10px] font-black uppercase text-slate-500">{displayMode}</td>
+                        <td className="px-10 py-6 text-right font-black text-lg">Rs. {row.totalDue.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-10 py-20 text-center">
+                       <div className="flex flex-col items-center gap-4 text-slate-300">
+                          <History className="w-12 h-12" />
+                          <p className="font-black uppercase tracking-widest text-[10px]">No records found for this status.</p>
+                       </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
               <tfoot className="bg-slate-900 text-white">
                 <tr className="border-t-4 border-white">
@@ -1103,6 +1160,51 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               </tfoot>
             </table>
           </div>
+          {/* Status Board Pagination UI */}
+          {totalStatusBoardPages > 1 && (
+            <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Showing {Math.min(comprehensiveHistory.length, (statusBoardPage-1) * recordsPerPage + 1)}-{Math.min(comprehensiveHistory.length, statusBoardPage * recordsPerPage)} of {comprehensiveHistory.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <button 
+                  disabled={statusBoardPage === 1}
+                  onClick={() => setStatusBoardPage(1)}
+                  className={`p-3 rounded-xl border transition-all ${statusBoardPage === 1 ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button 
+                  disabled={statusBoardPage === 1}
+                  onClick={() => setStatusBoardPage(p => Math.max(1, p - 1))}
+                  className={`p-3 rounded-xl border transition-all ${statusBoardPage === 1 ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="px-6 py-3 bg-white border border-slate-200 rounded-xl font-black text-xs text-slate-900 shadow-sm mx-1">
+                   Page {statusBoardPage} of {totalStatusBoardPages}
+                </div>
+                <button 
+                  disabled={statusBoardPage === totalStatusBoardPages}
+                  onClick={() => setStatusBoardPage(p => Math.min(totalStatusBoardPages, p + 1))}
+                  className={`p-3 rounded-xl border transition-all ${statusBoardPage === totalStatusBoardPages ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button 
+                  disabled={statusBoardPage === totalStatusBoardPages}
+                  onClick={() => setStatusBoardPage(totalStatusBoardPages)}
+                  className={`p-3 rounded-xl border transition-all ${statusBoardPage === totalStatusBoardPages ? 'bg-white text-slate-200 border-slate-100' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-900 hover:text-white shadow-sm'}`}
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1134,64 +1236,18 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 <button onClick={handleRestoreInitialData} className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg mt-auto">Restore Defaults</button>
               </div>
            </div>
-
-           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col h-[650px]">
               <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-red-50 rounded-2xl text-red-600"><CalendarRange className="w-6 h-6" /></div>
-                    <div>
-                        <h3 className="text-xl font-black uppercase tracking-tight">Calendar Roadmap</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yearly Cycle Overview</p>
+                    <div className="p-3 bg-slate-50 rounded-2xl text-slate-400"><TableIcon className="w-6 h-6" /></div>
+                    <div className="flex-1">
+                       <h3 className="text-xl font-black uppercase">Live Data Editor</h3>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select, view, and manually edit records</p>
                     </div>
                  </div>
-                 <div className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-sm tracking-widest">
-                    {yearNum}
-                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                 <div className="p-8 border-r border-slate-100 bg-slate-50/30">
-                    <h4 className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-6 flex items-center gap-2">
-                       <CheckCircle2 className="w-3 h-3" /> Created Lists
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                       {createdRoadmap.map(m => (
-                          <div key={m.key} className={`flex items-center justify-between p-4 rounded-2xl border ${m.key === activeMonthKey ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg scale-105' : 'bg-white text-slate-600 border-slate-100'}`}>
-                             <span className="font-black text-[11px] uppercase">{m.name}</span>
-                             {m.key === activeMonthKey ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
-                          </div>
-                       ))}
-                    </div>
-                 </div>
-                 <div className="p-8 bg-white">
-                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6 flex items-center gap-2">
-                       <Clock className="w-3 h-3" /> Upcoming Lists
-                    </h4>
-                    {upcomingRoadmap.length > 0 ? (
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {upcomingRoadmap.map(m => (
-                             <div key={m.key} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 text-slate-400">
-                                <span className="font-black text-[11px] uppercase">{m.name}</span>
-                                <Calendar className="w-3 h-3 opacity-30" />
-                             </div>
-                          ))}
-                       </div>
-                    ) : (
-                       <div className="py-10 text-center">
-                          <AlertCircle className="w-8 h-8 text-slate-100 mx-auto mb-2" />
-                          <p className="text-[10px] font-black text-slate-300 uppercase">Year cycle complete</p>
-                       </div>
-                    )}
-                 </div>
-              </div>
-           </div>
-
-           <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col h-[650px]">
-              <div className="p-8 border-b border-slate-100 flex items-center gap-4">
-                 <div className="p-3 bg-slate-50 rounded-2xl text-slate-400"><TableIcon className="w-6 h-6" /></div>
-                 <div className="flex-1">
-                    <h3 className="text-xl font-black uppercase">Live Data Editor</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select, view, and manually edit records</p>
-                 </div>
+                 <button onClick={() => onUpdateState({ _refresh: Date.now() })} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest">
+                   <RefreshCcw className="w-3 h-3" /> Force Refresh
+                 </button>
               </div>
               <div className="flex-1 flex overflow-hidden">
                  <div className="w-64 border-r border-slate-100 bg-slate-50/50 flex flex-col p-4 gap-2 overflow-y-auto">
@@ -1212,7 +1268,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                  </div>
               </div>
            </div>
-
            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
               <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                  <div className="flex items-center gap-4">
@@ -1222,9 +1277,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tracking actions of all users</p>
                     </div>
                  </div>
-                 <button onClick={handleClearLogs} className="px-6 py-2.5 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-100">
-                    Clear Logs
-                 </button>
+                 <button onClick={handleClearLogs} className="px-6 py-2.5 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-100">Clear Logs</button>
               </div>
               <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
                  {logsRaw.length > 0 ? (
@@ -1247,19 +1300,13 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                                 </td>
                                 <td className="px-8 py-5">
                                    <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">
-                                         {log.userName.charAt(0)}
-                                      </div>
+                                      <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">{log.userName.charAt(0)}</div>
                                       <span className="font-black text-slate-700">{log.userName}</span>
                                    </div>
                                 </td>
                                 <td className="px-8 py-5">
                                    <div className="flex items-center gap-3">
-                                      <div className={`w-2 h-2 rounded-full ${
-                                         log.type === 'SUCCESS' ? 'bg-emerald-500' : 
-                                         log.type === 'DANGER' ? 'bg-red-500 animate-pulse' : 
-                                         log.type === 'WARNING' ? 'bg-amber-500' : 'bg-blue-500'
-                                      }`} />
+                                      <div className={`w-2 h-2 rounded-full ${log.type === 'SUCCESS' ? 'bg-emerald-500' : log.type === 'DANGER' ? 'bg-red-500 animate-pulse' : log.type === 'WARNING' ? 'bg-amber-500' : 'bg-blue-500'}`} />
                                       <span className="font-bold text-slate-600 leading-relaxed">{log.action}</span>
                                    </div>
                                 </td>
@@ -1296,14 +1343,13 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                 </div>
                 <div className="p-6 bg-emerald-50 rounded-3xl text-center">
                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Paid</p>
-                   <p className="text-lg font-black text-emerald-700">Rs. {historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).reduce((s, h) => s + h.amount, 0).toLocaleString()}</p>
+                   <p className="text-lg font-black text-emerald-700">Rs. {historyRaw.filter(h => h.donorId === selectedDonorForLedger.id).reduce((s, h) => s + (h.amount || 0), 0).toLocaleString()}</p>
                 </div>
                 <div className="p-6 bg-blue-50 rounded-3xl text-center">
                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Monthly</p>
                    <p className="text-lg font-black text-blue-700">Rs. {selectedDonorForLedger.monthlyAmount.toLocaleString()}</p>
                 </div>
               </div>
-
               <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-100">
@@ -1386,9 +1432,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 
       {showAddCollectorModal && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
-            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Add New Agent</h3><button onClick={() => setShowAddCollectorModal(false)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
-            <div className="space-y-5 mb-8">
+          <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-8 animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-black uppercase tracking-widest">Add Agent</h3><button onClick={() => setShowAddCollectorModal(false)}><X className="w-5 h-5 text-slate-300 hover:text-red-500"/></button></div>
+            <div className="space-y-4 mb-8">
               <InputGroup label="Full Name" value={newCollectorData.name || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, name: v})} />
               <InputGroup label="Phone Number" value={newCollectorData.phone || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, phone: v})} />
               <InputGroup label="Username" value={newCollectorData.username || ''} onChange={(v: string) => setNewCollectorData({...newCollectorData, username: v})} />
@@ -1402,16 +1448,16 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 
       {editingCollector && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
-            <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black uppercase tracking-tight">Edit Agent</h3><button onClick={() => setEditingCollector(null)}><X className="w-6 h-6 text-slate-300 hover:text-red-500"/></button></div>
-            <div className="space-y-5 mb-8">
-              <InputGroup label="Full Name" value={editingCollector.name} onChange={(v: string) => setEditingCollector({...editingCollector, name: v})} />
-              <InputGroup label="Phone Number" value={editingCollector.phone} onChange={(v: string) => setEditingCollector({...editingCollector, phone: v})} />
-              <InputGroup label="Username" value={editingCollector.username} onChange={(v: string) => setEditingCollector({...editingCollector, username: v})} />
+          <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-8 animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-black uppercase tracking-widest">Edit Agent</h3><button onClick={() => setEditingCollector(null)}><X className="w-5 h-5 text-slate-300 hover:text-red-500"/></button></div>
+            <div className="space-y-4 mb-8">
+              <InputGroup label="Full Name" value={editingCollector.name || ''} onChange={(v: string) => setEditingCollector({...editingCollector, name: v})} />
+              <InputGroup label="Phone Number" value={editingCollector.phone || ''} onChange={(v: string) => setEditingCollector({...editingCollector, phone: v})} />
+              <InputGroup label="Username" value={editingCollector.username || ''} onChange={(v: string) => setEditingCollector({...editingCollector, username: v})} />
               <InputGroup label="Password" value={editingCollector.password || ''} onChange={(v: string) => setEditingCollector({...editingCollector, password: v})} />
               <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Primary Area</label><select className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" value={editingCollector.city || ''} onChange={(e: any) => setEditingCollector({...editingCollector, city: e.target.value})}>{citiesRaw.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
             </div>
-            <button onClick={handleUpdateCollector} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl hover:bg-black transition-all">Save Changes</button>
+            <button onClick={handleUpdateCollector} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase shadow-xl hover:bg-black transition-all">Update Agent Profile</button>
           </div>
         </div>
       )}

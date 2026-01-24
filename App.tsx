@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, User, UserRole, LogEntry } from './types';
 import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from './constants';
 import DashboardHeader from './components/DashboardHeader';
 import AdminPanel from './components/AdminPanel';
 import CollectorPanel from './components/CollectorPanel';
-import { Droplets, Lock, Eye, EyeOff, X } from 'lucide-react';
+import { Droplets, Loader2 } from 'lucide-react';
 
 const firebase = (window as any).firebase;
 
@@ -25,7 +26,7 @@ if (firebase && !firebase.apps.length) {
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => ({
     currentUser: null,
-    donors: INITIAL_DONORS,
+    donors: [],
     collectors: INITIAL_COLLECTORS,
     donationHistory: [],
     logs: [],
@@ -35,69 +36,89 @@ const App: React.FC = () => {
     superAdminPassword: "superadmin"
   }));
 
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [syncMessage, setSyncMessage] = useState('Connecting to cloud...');
   const [usernameInput, setUsernameInput] = useState('superadmin');
   const [passwordInput, setPasswordInput] = useState('superadmin');
   const [error, setError] = useState('');
   const [collectorTab, setCollectorTab] = useState<'pending' | 'history'>('pending');
 
-  const ensureArray = (data: any) => {
+  const hasAutoSynced = useRef(false);
+
+  const ensureArray = useCallback((data: any) => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
-    return Object.values(data);
-  };
+    if (typeof data === 'object') {
+      return Object.keys(data)
+        .sort((a, b) => Number(a) - Number(b))
+        .map(key => data[key]);
+    }
+    return [];
+  }, []);
 
   useEffect(() => {
     if (!firebase) return;
     const dbRef = firebase.database().ref('esaar_state');
     
-    const handleData = (snapshot: any) => {
+    const handleData = async (snapshot: any) => {
       const cloudData = snapshot.val();
+      
+      if (!cloudData || !cloudData.donors || ensureArray(cloudData.donors).length < 10) {
+        if (!hasAutoSynced.current) {
+          setSyncMessage('Restoring Donor Database (300+ records)...');
+          hasAutoSynced.current = true;
+          const initialState = {
+            donors: INITIAL_DONORS,
+            collectors: INITIAL_COLLECTORS,
+            donationHistory: cloudData?.donationHistory || [],
+            logs: [{
+              id: 'init-' + Date.now(),
+              userId: 'system',
+              userName: 'System Auto-Sync',
+              action: 'Automatically restored 313 donors and assigned real agents to cloud database',
+              timestamp: new Date().toISOString(),
+              type: 'SUCCESS'
+            }, ...(ensureArray(cloudData?.logs))],
+            cities: CITIES,
+            currentMonthKey: cloudData?.currentMonthKey || "2026-01",
+            adminPassword: "admin",
+            superAdminPassword: "superadmin"
+          };
+          await dbRef.set(initialState);
+          return;
+        }
+      }
+
       if (cloudData) {
-        // Standard sync without any pruning logic
         setState(prev => ({
           ...prev,
-          ...cloudData,
           donors: ensureArray(cloudData.donors),
           collectors: ensureArray(cloudData.collectors),
           donationHistory: ensureArray(cloudData.donationHistory),
           logs: ensureArray(cloudData.logs),
           cities: ensureArray(cloudData.cities),
           currentMonthKey: cloudData.currentMonthKey || "2026-01",
-          currentUser: prev.currentUser 
+          adminPassword: cloudData.adminPassword || prev.adminPassword,
+          superAdminPassword: cloudData.superAdminPassword || prev.superAdminPassword,
+          _refresh: cloudData._refresh
         }));
-      } else {
-        // First-time database setup
-        dbRef.set({
-          donors: INITIAL_DONORS,
-          collectors: INITIAL_COLLECTORS,
-          donationHistory: [],
-          logs: [],
-          cities: CITIES,
-          currentMonthKey: "2026-01"
-        });
       }
+      setIsInitializing(false);
     };
 
     dbRef.on('value', handleData);
     return () => dbRef.off('value', handleData);
-  }, []);
+  }, [ensureArray]);
 
-  const updateGlobalState = useCallback((newState: Partial<AppState>) => {
+  const updateGlobalState = useCallback(async (newState: Partial<AppState>) => {
     if (!firebase) return;
-    
-    setState(prev => {
-      const updatedFullState = { ...prev, ...newState };
-      const dbRef = firebase.database().ref('esaar_state');
-      
-      Object.keys(newState).forEach(key => {
-        const val = (newState as any)[key];
-        if (val !== undefined) {
-          dbRef.child(key).set(val);
-        }
-      });
-
-      return updatedFullState;
-    });
+    const dbRef = firebase.database().ref('esaar_state');
+    try {
+      await dbRef.update(newState);
+    } catch (err) {
+      console.error("Firebase update failed:", err);
+      alert("Failed to sync with cloud. Please check connection.");
+    }
   }, []);
 
   const handleExport = async () => {
@@ -116,7 +137,7 @@ const App: React.FC = () => {
     link.href = url;
     link.download = `esaar_backup_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
-    URL.createObjectURL(blob);
+    URL.revokeObjectURL(url);
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -138,6 +159,16 @@ const App: React.FC = () => {
       }
     }
   };
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6">
+        <Loader2 className="w-12 h-12 text-red-600 animate-spin mb-4" />
+        <h2 className="text-xl font-black uppercase tracking-widest">{syncMessage}</h2>
+        <p className="text-slate-500 text-xs mt-2 font-bold uppercase">Esaar Blood Bank Cloud v3.7.6</p>
+      </div>
+    );
+  }
 
   if (!state.currentUser) {
     return (
