@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { AppState, Donor, User, UserRole, DonationRecord, LogEntry } from '../types';
+import { INITIAL_DONORS, INITIAL_COLLECTORS, CITIES } from '../constants';
 import { 
   Users, 
   UserCheck, 
@@ -35,7 +36,8 @@ import {
   Printer,
   FileDown,
   Activity,
-  ClipboardList
+  ClipboardList,
+  RotateCcw
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -54,6 +56,29 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
   </svg>
+);
+
+const InputGroup = ({ label, value, onChange, type = "text" }: any) => (
+  <div className="space-y-2 flex-1">
+    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{label}</label>
+    <input 
+      type={type} 
+      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-100 transition-all" 
+      value={value} 
+      onChange={e => onChange(e.target.value)} 
+    />
+  </div>
+);
+
+const StatCard = ({ label, value, icon, color, subStats }: any) => (
+  <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-full flex flex-col justify-center hover:shadow-lg transition-all relative group">
+    <div className={`p-4 rounded-[20px] bg-slate-50 inline-block mb-6 ${color} w-fit transition-transform group-hover:scale-110`}>{icon}</div>
+    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+    <div className="flex justify-between items-center gap-4">
+      <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
+      {subStats && <div className="text-right">{subStats}</div>}
+    </div>
+  </div>
 );
 
 const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) => {
@@ -130,7 +155,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     const donorHistory = historyRaw.filter(h => h.donorId === donor.id);
     const totalExpectedCumulative = totalMonthsCount * (donor.monthlyAmount || 0);
     
-    // Logic Fix: Only count payments made up to and including the activeMonthKey
     const validPaidCumulative = donorHistory
       .filter(h => h.date.slice(0, 7) >= effectiveStartStr && h.date.slice(0, 7) <= activeMonthKey)
       .reduce((sum, h) => sum + (h.amount || 0), 0);
@@ -193,6 +217,24 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     }
   };
 
+  const handleRestoreInitialData = () => {
+    if (window.confirm("کیا آپ واقعی تمام ڈونرز کو ان کی اصل حالت (Default) پر بحال کرنا چاہتے ہیں؟ موجودہ تمام ڈونرز کی فہرست تبدیل ہو جائے گی۔")) {
+      setIsProcessing(true);
+      const updatedLogs = addLog("Restored System Default Donors and Collectors", "WARNING");
+      onUpdateState({ 
+        donors: INITIAL_DONORS, 
+        collectors: INITIAL_COLLECTORS, 
+        cities: CITIES,
+        logs: updatedLogs 
+      });
+      setTimeout(() => { 
+        setIsProcessing(false); 
+        setActiveTab('donors');
+        alert("System defaults restored!");
+      }, 800);
+    }
+  };
+
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -246,7 +288,7 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     return (
       <div className="p-8 animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between mb-8">
-           <button onClick={() => setEditingRecord(null)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-black text-[10px] uppercase tracking-wider text-slate-500 transition-all">
+           <button onClick={() => editingRecord && setEditingRecord(null)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-black text-[10px] uppercase tracking-wider text-slate-500 transition-all">
               <ArrowLeft className="w-3.5 h-3.5" /> Back to List
            </button>
            <button onClick={saveRecordEdits} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-lg transition-all">
@@ -411,7 +453,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
     })
     .filter(d => statusFilter === 'ALL' ? true : d.status === statusFilter);
 
-  // Totals for history table
   const historyTotals = comprehensiveHistory.reduce((acc, row) => {
     const record = historyRaw.find(h => h.donorId === row.id && h.date.startsWith(activeMonthKey));
     return {
@@ -671,29 +712,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
   const createdRoadmap = roadmapMonths.filter(m => m.key <= activeMonthKey);
   const upcomingRoadmap = roadmapMonths.filter(m => m.key > activeMonthKey);
 
-  const InputGroup = ({ label, value, onChange, type = "text" }: any) => (
-    <div className="space-y-2 flex-1">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{label}</label>
-      <input 
-        type={type} 
-        className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-slate-100 transition-all" 
-        value={value} 
-        onChange={e => onChange(e.target.value)} 
-      />
-    </div>
-  );
-
-  const StatCard = ({ label, value, icon, color, subStats }: any) => (
-    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm h-full flex flex-col justify-center hover:shadow-lg transition-all relative group">
-      <div className={`p-4 rounded-[20px] bg-slate-50 inline-block mb-6 ${color} w-fit transition-transform group-hover:scale-110`}>{icon}</div>
-      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
-      <div className="flex justify-between items-center gap-4">
-        <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
-        {subStats && <div className="text-right">{subStats}</div>}
-      </div>
-    </div>
-  );
-
   if (showAreaManagement) {
     return (
       <div className="p-8 animate-in fade-in duration-300">
@@ -872,7 +890,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       {activeTab === 'donors' && (
         <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
           <div className="p-8 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight flex-1">Donors</h2>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight flex-1">
+              Donors <span className="text-sm text-blue-600 font-bold ml-1">({donorsList.length})</span>
+            </h2>
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -944,7 +964,9 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
       {activeTab === 'collectors' && (
         <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
           <div className="p-8 border-b border-slate-100 flex justify-between items-center">
-             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Agents</h2>
+             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+               Agents <span className="text-sm text-blue-600 font-bold ml-1">({collectorsRaw.length})</span>
+             </h2>
              <button onClick={() => setShowAddCollectorModal(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg whitespace-nowrap"><UserPlus className="w-4 h-4" /> Add Agent</button>
           </div>
           <div className="overflow-x-auto">
@@ -1064,7 +1086,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
                   );
                 })}
               </tbody>
-              {/* Grand Total Row */}
               <tfoot className="bg-slate-900 text-white">
                 <tr className="border-t-4 border-white">
                   <td className="px-10 py-6 font-black uppercase text-xs tracking-widest">Grand Total</td>
@@ -1087,28 +1108,33 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
 
       {activeTab === 'maintenance' && isSuperAdmin && (
         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-500">
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4"><RefreshCw className="w-8 h-8 text-red-600" /></div>
-                <h3 className="text-lg font-black mb-2 uppercase">Master Reset</h3>
-                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Reset all collections to Jan 2026</p>
-                <button onClick={handleMasterReset} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Reset System</button>
+                <h3 className="text-sm font-black mb-2 uppercase">Master Reset</h3>
+                <p className="text-slate-400 text-[9px] mb-6 font-bold uppercase">Reset all collections to Jan 2026</p>
+                <button onClick={handleMasterReset} className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg mt-auto">Reset System</button>
               </div>
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4"><Download className="w-8 h-8 text-blue-600" /></div>
-                <h3 className="text-lg font-black mb-2 uppercase">Backup Data</h3>
-                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Download JSON file</p>
-                <button onClick={onBackupClick} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Export Backup</button>
+                <h3 className="text-sm font-black mb-2 uppercase">Backup Data</h3>
+                <p className="text-slate-400 text-[9px] mb-6 font-bold uppercase">Download JSON file</p>
+                <button onClick={onBackupClick} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg mt-auto">Export Backup</button>
               </div>
               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
                 <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4"><Upload className="w-8 h-8 text-emerald-600" /></div>
-                <h3 className="text-lg font-black mb-2 uppercase">Restore Data</h3>
-                <p className="text-slate-400 text-[10px] mb-6 font-bold uppercase">Upload JSON file</p>
-                <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg mt-auto">Import Backup</button>
+                <h3 className="text-sm font-black mb-2 uppercase">Restore Data</h3>
+                <p className="text-slate-400 text-[9px] mb-6 font-bold uppercase">Upload JSON file</p>
+                <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg mt-auto">Import Backup</button>
+              </div>
+              <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4"><RotateCcw className="w-8 h-8 text-amber-600" /></div>
+                <h3 className="text-sm font-black mb-2 uppercase text-amber-600">Load Defaults</h3>
+                <p className="text-slate-400 text-[9px] mb-6 font-bold uppercase">Recover 150+ original donors</p>
+                <button onClick={handleRestoreInitialData} className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg mt-auto">Restore Defaults</button>
               </div>
            </div>
 
-           {/* CALENDAR ROADMAP BOX */}
            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
               <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                  <div className="flex items-center gap-4">
@@ -1187,7 +1213,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
               </div>
            </div>
 
-           {/* SYSTEM LOG BOX */}
            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
               <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                  <div className="flex items-center gap-4">
@@ -1253,7 +1278,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* LEDGER MODAL */}
       {selectedDonorForLedger && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-3xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-300">
@@ -1325,7 +1349,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* ADD DONOR MODAL */}
       {showAddDonorModal && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto animate-in zoom-in duration-300">
@@ -1344,7 +1367,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* EDIT DONOR MODAL */}
       {editingDonor && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto animate-in zoom-in duration-300">
@@ -1362,7 +1384,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* ADD COLLECTOR MODAL */}
       {showAddCollectorModal && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
@@ -1379,7 +1400,6 @@ const AdminPanel: React.FC<Props> = ({ state, onUpdateState, onBackupClick }) =>
         </div>
       )}
 
-      {/* EDIT COLLECTOR MODAL */}
       {editingCollector && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-sm rounded-[40px] shadow-2xl p-10 animate-in zoom-in duration-300">
